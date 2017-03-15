@@ -156,17 +156,6 @@ public class IndexFiles {
     }
   }
 
-	private String BuildStringFromList(List<String> list) {
-		StringBuilder sb = new StringBuilder();
-		if (list != null)
-			for (String s : list) {
-				sb.append(s);
-				if (!s.endsWith(" "))
-					sb.append(" ");
-			}
-		return sb.toString();
-	}
-
 
   /** Indexes a single document */
   static void indexDoc(IndexWriter writer, Path file, long lastModified) throws IOException {
