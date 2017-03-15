@@ -90,6 +90,8 @@ public class Reuters21578Parser {
 		String title = extract("TITLE", text, true);
 		String dateline = extract("DATELINE", text, true);
 		String body = extract("BODY", text, true);
+		String date = extract("DATE", text, true);
+
 		if (body.endsWith(END_BOILERPLATE_1)
 				|| body.endsWith(END_BOILERPLATE_2))
 			body = body
