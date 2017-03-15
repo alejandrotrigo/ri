@@ -102,6 +102,7 @@ public class Reuters21578Parser {
 		document.add(topics.replaceAll("\\<D\\>", " ").replaceAll("\\<\\/D\\>",
 				""));
 		document.add(dateline);
+		document.add(date);
 		return document;
 	}
 

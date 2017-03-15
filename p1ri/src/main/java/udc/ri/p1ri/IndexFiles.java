@@ -11,6 +11,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
@@ -38,13 +40,17 @@ public class IndexFiles {
 
   /** Index all text files under a directory. */
   public static void main(String[] args) {
+	  
+	  //TODO:validate arguments
+	  
+	  //TODO indexes1 indexes2
 			  String usage = "-openmode openmode (append, create, create_or_append) "
 						+"-index pathname "
 						+"-coll pathname (*.sgm files) "
 						+"-colls pathname_1 ... pathname_n "
 						+"-indexes1 pathname_0 pathname_1 ... pathname_n "
 						+"-indexes2 pathname_0 ";
-		String openMode = "append";
+		String openMode = "create";
 		String indexPath = null;
 		String coll = null;
 		String indexes2 = null;
@@ -60,14 +66,15 @@ public class IndexFiles {
 		      i++;
 		    } else if ("-coll".equals(args[i])) {
 		      coll = args[i+1];
+		      colls.add(coll);
 		      i++;
 		    } else if ("-colls".equals(args[i])) {
-		  	  while (args[i+1].charAt(0) != '-'){
+		  	  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
 		  		  colls.add(args[i+1]);
 			    	  i++;
 		  	  }
 		    } else if ("-indexes1".equals(args[i])){
-		  	  while (args[i+1].charAt(0) != '-'){
+			  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
 		  		  indexes1.add(args[i+1]);
 			    	  i++;
 		  	  }
@@ -99,26 +106,36 @@ public class IndexFiles {
       Analyzer analyzer = new StandardAnalyzer();
       IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
 
-      if (true) { //if openMode.equals("create") {
-        // Create a new index in the directory, removing any
-        // previously indexed documents:
+      if (openMode.equals("create")) {
         iwc.setOpenMode(OpenMode.CREATE);
-      } else { //else if openMode.equals("create_or_append")
-        // Add new documents to an existing index:
+      }else if (openMode.equals("create_or_append")){
         iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
-      } /*else if openMode.equals("append"){
-				iwc.setOpenMode(OpenMode.APPEND):
-			}else { System.out.println("Error")}*/
+      }else if (openMode.equals("append")){
+		iwc.setOpenMode(OpenMode.APPEND);
+      }else { 
+    	  System.out.println("Error, se toma create por defecto");
+    	  
+      }
       // Optional: for better indexing performance, if you
       // are indexing many documents, increase the RAM
       // buffer.  But if you do this, increase the max heap
       // size to the JVM (eg add -Xmx512m or -Xmx1g):
       //
       // iwc.setRAMBufferSizeMB(256.0);
-
+      
+//TODO funcion de creacion de writers
       IndexWriter writer = new IndexWriter(dir, iwc);
-      indexDocs(writer, Paths.get(coll));
-
+      List<IndexWriter> writers= new ArrayList();
+      
+      for (String columna:colls){
+    	  if (indexPath != null){
+    		  indexDocs(writers.get(0), Paths.get(columna),1);
+    		  writers.remove(0);
+    	  }else{
+    		  Path indice=null;
+    	   	   int a= new ThreadPool(columna,indice,writer).execute();
+    	  }
+      }
       // NOTE: if you want to maximize search performance,
       // you can optionally call forceMerge here.  This can be
       // a terribly costly operation, so generally it's only
@@ -138,20 +155,23 @@ public class IndexFiles {
     }
   }
 
-  static void indexDocs(final IndexWriter writer, Path path) throws IOException {
+  static void indexDocs(final IndexWriter writer, Path path, long threadnum) throws IOException {
     if (Files.isDirectory(path)) {
-    	
     	
       Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-      		/*Comprobar si el nombre del archivo es reut2-xxx.sgm
-      		String nArchivo = file.toString().substring(6,9);
-      		int archivon = Integer.parseInt(nArchivo);
+        	//TODO:comprobacion nombre
+      		//Comprobar si el nombre del archivo es reut2-xxx.sgm
+        	/*
+      		int nArchivo = file.toString().length();
+      		String numero= file.toString().substring((nArchivo-8), (nArchivo-5));
+      		System.out.println(numero);
+      		int archivon = Integer.parseInt(numero);
 
-      		if (nArchivo > 100 || nArchivo <0){
-      			System.out.println("ERROR, archivo no pertenece").
-      		} */
+      		if ((archivon > 999) || (archivon <0)){
+      			System.out.println("ERROR, archivo no pertenece");
+      		}*/
     	    try (InputStream stream = Files.newInputStream(file)) {
     	        // make a new, empty document
 
@@ -179,72 +199,41 @@ public class IndexFiles {
         }
       });
     } else {
-      indexDoc(writer, path, sdoc);
+      //indexDoc(writer, path, sdoc);
     }
   }
 
 
   /** Indexes a single document */
+  //TODO:añadir count para saber numero de documento indexado
   static void indexDoc(IndexWriter writer, Path file, List<String> sdoc) throws IOException {
 
-    try (InputStream stream = Files.newInputStream(file)) {
-      // make a new, empty document
-
-
-      BufferedReader contents = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-
-      StringBuffer buff= new StringBuffer();
-
-      buff.append(contents);
-
-      Document doc = new Document();
-
-
-  	List<List<String>> articles = Reuters21578Parser.parseString(buff);
-
-
-
-  	StringBuilder titles=new StringBuilder();
-
+	  
+    Document doc = new Document();
 
 
   	//añadir los campos del doc
 
 
-  		//doc.add(new TextField("TITLE", sdoc.get(2),Field.Store.YES));
+  		doc.add(new TextField("TITLE", sdoc.get(0),Field.Store.YES));
+  		doc.add(new TextField("BODY", sdoc.get(1),Field.Store.YES));
+  		doc.add(new TextField("TOPICS", sdoc.get(2),Field.Store.YES));
+  		doc.add(new TextField("DATELINE", sdoc.get(3),Field.Store.YES));
+  		SimpleDateFormat date= new SimpleDateFormat("dd-MMM-YYYY hh:mm:ss.SS");
+  		try {
+			Date now= date.parse(sdoc.get(4));
+	  		doc.add(new StringField("DATE", now.toString(),Field.Store.YES));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
-  		//dateline
-
-  		//date
-
-  		//doc.add(new TextField("BODY", sdoc.get(4),Field.Store.YES));
 
 
-
-		doc.add(new TextField("TITLES", titles.toString(),Field.Store.YES));
-
-
+  		
   //añadir otros campos
-
         Field pathField = new StringField("path", file.toString(), Field.Store.YES);
         doc.add(pathField);
-
-
-
-        // Add the last modified date of the file a field named "modified".
-        // Use a LongPoint that is indexed (i.e. efficiently filterable with
-        // PointRangeQuery).  This indexes to milli-second resolution, which
-        // is often too fine.  You could instead create a number based on
-        // year/month/day/hour/minutes/seconds, down the resolution you require.
-        // For example the long value 2011021714 would mean
-        // February 17, 2011, 2-3 PM.
-        doc.add(new LongPoint("modified", lastModified));
-
-        // Add the contents of the file to a field named "contents".  Specify a Reader,
-        // so that the text of the file is tokenized and indexed, but not stored.
-        // Note that FileReader expects the file to be in UTF-8 encoding.
-        // If that's not the case searching for special characters will fail.
-        doc.add(new TextField("contents", new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))));
 
         if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
           // New index, so we just add the document (no old document can be there):
@@ -263,4 +252,3 @@ public class IndexFiles {
 
 
     }
-  }
