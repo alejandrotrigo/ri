@@ -44,8 +44,45 @@ public class IndexProcessing {
 						+"-poor_idfterms field n "
 						+"-best_tfidfterms field n "
 						+"-poor_tfidfterms field n";
-		String indexin;
+		String indexin = null;
 		String field;
 		int numElements;
+		
+		for(int i=0; i<args.length;i++){
+			if("-indexin".equals(args[i])){
+				indexin = args[i+1];
+				i++;
+			}else if("-best_idfterms".equals(args[i])){
+				field = args[i+1];
+				numElements = Integer.parseInt(args[i+2]);
+				i+=2;
+			}else if("-poor_idfterms".equals(args[i])){
+				field = args[i+1];
+				numElements = Integer.parseInt(args[i+2]);
+				i+=2;
+			}else if("-best_tfidfterms".equals(args[i])){
+				field = args[i+1];
+				numElements = Integer.parseInt(args[i+2]);
+				i+=2;
+			}else if("-poor_tfidfterms".equals(args[i])){
+				field = args[i+1];
+				numElements = Integer.parseInt(args[i+2]);
+				i+=2;
+			}
+		}
+		
+		//Check if the given path is correct
+		if(indexin == null){
+			System.out.println("Usage: "+usage);
+			System.exit(1);
+		}
+		final Path PROCESSING_INDEX_PATH = Paths.get(indexin);
+		if (!Files.isReadable(PROCESSING_INDEX_PATH)){
+			System.out.println("Document directory '" +PROCESSING_INDEX_PATH.toAbsolutePath()+ "' does not exist or is not readable, please check the path");
+		  System.exit(1);
+		}
+		
+		
+		
 	}
 }
