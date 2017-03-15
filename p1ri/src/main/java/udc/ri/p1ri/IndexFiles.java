@@ -140,11 +140,38 @@ public class IndexFiles {
 
   static void indexDocs(final IndexWriter writer, Path path) throws IOException {
     if (Files.isDirectory(path)) {
+    	
+    	
       Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-          try {
-            indexDoc(writer, file, attrs.lastModifiedTime().toMillis());
+      		/*Comprobar si el nombre del archivo es reut2-xxx.sgm
+      		String nArchivo = file.toString().substring(6,9);
+      		int archivon = Integer.parseInt(nArchivo);
+
+      		if (nArchivo > 100 || nArchivo <0){
+      			System.out.println("ERROR, archivo no pertenece").
+      		} */
+    	    try (InputStream stream = Files.newInputStream(file)) {
+    	        // make a new, empty document
+
+              BufferedReader contents = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+
+              StringBuffer buff= new StringBuffer();
+              String line;
+              
+              while((line= contents.readLine()) != null)
+            	  buff.append(line).append("\n");
+              buff.append(System.getProperty("line.separator"));
+              
+              buff.append(contents);
+
+          		List<List<String>> articles = Reuters21578Parser.parseString(buff);
+
+          	  	for(List<String> sdoc : articles){
+
+          	  		indexDoc(writer, file, sdoc);
+          	  	}
           } catch (IOException ignore) {
             // don't index files that can't be read.
           }
@@ -152,20 +179,14 @@ public class IndexFiles {
         }
       });
     } else {
-      indexDoc(writer, path, Files.getLastModifiedTime(path).toMillis());
+      indexDoc(writer, path, sdoc);
     }
   }
 
 
   /** Indexes a single document */
-  static void indexDoc(IndexWriter writer, Path file, long lastModified) throws IOException {
-		/*Comprobar si el nombre del archivo es reut2-xxx.sgm
-		String nArchivo = file.toString().substring(6,9);
-		int archivon = Integer.parseInt(nArchivo);
+  static void indexDoc(IndexWriter writer, Path file, List<String> sdoc) throws IOException {
 
-		if (nArchivo > 100 || nArchivo <0){
-			System.out.println("ERROR, archivo no pertenece").
-		} */
     try (InputStream stream = Files.newInputStream(file)) {
       // make a new, empty document
 
@@ -186,13 +207,8 @@ public class IndexFiles {
   	StringBuilder titles=new StringBuilder();
 
 
-  	for(List<String> sdoc : articles){
 
   	//añadir los campos del doc
-
-  		titles.append(sdoc.get(1));
-        System.out.println("TITULO " + sdoc.get(1));
-
 
 
   		//doc.add(new TextField("TITLE", sdoc.get(2),Field.Store.YES));
@@ -204,7 +220,6 @@ public class IndexFiles {
   		//doc.add(new TextField("BODY", sdoc.get(4),Field.Store.YES));
 
 
-  	}
 
 		doc.add(new TextField("TITLES", titles.toString(),Field.Store.YES));
 
