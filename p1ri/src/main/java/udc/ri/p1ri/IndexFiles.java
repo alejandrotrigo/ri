@@ -15,12 +15,10 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -56,6 +54,10 @@ public class IndexFiles {
 		String indexes2 = null;
 		ArrayList<String> colls = new ArrayList<>();
 		ArrayList<String> indexes1 = new ArrayList<>();
+		
+		
+		
+
 
 		for(int i=0; i<args.length;i++){
 			if ("-openmode".equals(args[i])) {
@@ -96,8 +98,6 @@ public class IndexFiles {
 		}
 
 
-
-
     Date start = new Date();
     try {
       System.out.println("Indexing to directory '" + indexPath + "'...");
@@ -123,9 +123,9 @@ public class IndexFiles {
       //
       // iwc.setRAMBufferSizeMB(256.0);
       
-//TODO funcion de creacion de writers
+      //TODO:separar index de indexes1 de indexes2
       IndexWriter writer = new IndexWriter(dir, iwc);
-      List<IndexWriter> writers= new ArrayList();
+      List<IndexWriter> writers= createIws(indexes1,iwc);
       
       for (String columna:colls){
     	  if (indexPath != null){
@@ -154,6 +154,26 @@ public class IndexFiles {
        "\n with message: " + e.getMessage());
     }
   }
+  
+  
+	static List<IndexWriter> createIws(List<String> indexes1,IndexWriterConfig iwc) throws IOException{
+		
+		List<IndexWriter> iws= new ArrayList<>();
+	    Directory dir =null;
+
+		
+		for (String index: indexes1){
+			
+			dir=FSDirectory.open(Paths.get(index));
+			IndexWriter writer = new IndexWriter(dir, iwc);
+			iws.add(writer);
+		}
+		
+		
+		return iws;
+	}
+  
+
 
   static void indexDocs(final IndexWriter writer, Path path, long threadnum) throws IOException {
     if (Files.isDirectory(path)) {
@@ -188,9 +208,11 @@ public class IndexFiles {
 
           		List<List<String>> articles = Reuters21578Parser.parseString(buff);
 
+          		int i=1;
           	  	for(List<String> sdoc : articles){
-
-          	  		indexDoc(writer, file, sdoc);
+          	  		
+          	  		indexDoc(writer, file, sdoc,i);
+          	  		i++;
           	  	}
           } catch (IOException ignore) {
             // don't index files that can't be read.
@@ -205,20 +227,16 @@ public class IndexFiles {
 
 
   /** Indexes a single document */
-  //TODO:añadir count para saber numero de documento indexado
-  static void indexDoc(IndexWriter writer, Path file, List<String> sdoc) throws IOException {
+  static void indexDoc(IndexWriter writer, Path file, List<String> sdoc,int docn) throws IOException {
 
 	  
-    Document doc = new Document();
-
-
-  	//añadir los campos del doc
-
-
+	  	Document doc = new Document();
+    
   		doc.add(new TextField("TITLE", sdoc.get(0),Field.Store.YES));
   		doc.add(new TextField("BODY", sdoc.get(1),Field.Store.YES));
   		doc.add(new TextField("TOPICS", sdoc.get(2),Field.Store.YES));
   		doc.add(new TextField("DATELINE", sdoc.get(3),Field.Store.YES));
+  		doc.add(new TextField("DOCNUMBER", String.valueOf(docn),Field.Store.YES));
   		SimpleDateFormat date= new SimpleDateFormat("dd-MMM-YYYY hh:mm:ss.SS");
   		try {
 			Date now= date.parse(sdoc.get(4));
