@@ -25,12 +25,22 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 
 public class IndexProcessing {
 
@@ -45,7 +55,7 @@ public class IndexProcessing {
 						+"-best_tfidfterms field n "
 						+"-poor_tfidfterms field n";
 		String indexin = null;
-		String field;
+		String fieldU = null;
 		int numElements;
 		
 		for(int i=0; i<args.length;i++){
@@ -53,36 +63,107 @@ public class IndexProcessing {
 				indexin = args[i+1];
 				i++;
 			}else if("-best_idfterms".equals(args[i])){
-				field = args[i+1];
+				fieldU = args[i+1];
 				numElements = Integer.parseInt(args[i+2]);
 				i+=2;
 			}else if("-poor_idfterms".equals(args[i])){
-				field = args[i+1];
+				fieldU = args[i+1];
 				numElements = Integer.parseInt(args[i+2]);
 				i+=2;
 			}else if("-best_tfidfterms".equals(args[i])){
-				field = args[i+1];
+				fieldU = args[i+1];
 				numElements = Integer.parseInt(args[i+2]);
 				i+=2;
 			}else if("-poor_tfidfterms".equals(args[i])){
-				field = args[i+1];
+				fieldU = args[i+1];
 				numElements = Integer.parseInt(args[i+2]);
 				i+=2;
 			}
 		}
 		
-		//Check if the given path is correct
-		if(indexin == null){
-			System.out.println("Usage: "+usage);
-			System.exit(1);
-		}
-		final Path PROCESSING_INDEX_PATH = Paths.get(indexin);
-		if (!Files.isReadable(PROCESSING_INDEX_PATH)){
-			System.out.println("Document directory '" +PROCESSING_INDEX_PATH.toAbsolutePath()+ "' does not exist or is not readable, please check the path");
-		  System.exit(1);
+		String indexFolder = indexin;
+
+		Directory dir = null;
+		DirectoryReader indexReader = null;
+
+		//List<IndexableField> fields = null;
+		
+		try {
+			dir = FSDirectory.open(Paths.get(indexFolder));
+			indexReader = DirectoryReader.open(dir);
+		} catch (CorruptIndexException e1) {
+			System.out.println("Graceful message: exception " + e1);
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			System.out.println("Graceful message: exception " + e1);
+			e1.printStackTrace();
 		}
 		
+		int numDocs =indexReader.maxDoc();
+		System.out.println("NÚMERO DE DOCUMENTOS: " + numDocs);
 		
+		
+		//Opciones 3 y 4 
+		/*try{
+			for (int docNum=0; docNum<numDocs; docNum++){
+				Terms termVector = indexReader.getTermVector(docNum, fieldU);
+				System.out.println("DOCNUM: " + docNum + " field: " + fieldU);
+				TermsEnum itr = termVector.iterator();
+				BytesRef term = null;
+				PostingsEnum postings = null;
+				double frecuencia = 0;
+				while((term = itr.next()) != null){
+					try{
+						String termText = term.utf8ToString();
+						postings = itr.postings(postings, PostingsEnum.FREQS);
+						int freq = postings.freq();
+						if (freq < 1){
+							frecuencia = 0;
+						}else{
+							frecuencia = 1 + Math.log(freq);
+						}
+						System.out.println("doc:" + docNum + ", term: " + termText + ", tfIdf = " + frecuencia);
+					} catch(Exception e){
+						System.out.println(e);
+					}
+				
+				}
+			}
+			
+		}catch(IOException e){
+			System.out.println(e);
+		}*/
+		
+		System.out.println("Size of  indexReader.leaves() = " + indexReader.leaves().size());
+		for (final LeafReaderContext leaf : indexReader.leaves()) {
+			// Print leaf number (starting from zero)
+			System.out.println("We are in the leaf number " + leaf.ord);
+
+			// Create an AtomicReader for each leaf
+			// (using, again, Java 7 try-with-resources syntax)
+			try (LeafReader leafReader = leaf.reader()) {
+
+				// Get the fields contained in the current segment/leaf
+				final Fields fields = leafReader.fields();
+				System.out.println("Numero de campos devuelto por leafReader.fields() = " + fields.size());
+
+				//Opción 1 y 2, best n terms by idf terms
+				System.out.println("Field = " + fieldU);
+				final Terms terms = fields.terms(fieldU);
+				final TermsEnum termsEnum = terms.iterator();
+				while (termsEnum.next() != null) {
+					final String tt = termsEnum.term().utf8ToString();
+					double idf = Math.log(numDocs/termsEnum.totalTermFreq());
+					//System.out.println("Especificidad del término: " + tt + " : " + idf + " número de documentos: " + numDocs + " frecuencia del término: " + termsEnum.totalTermFreq());
+				}
+				
+				
+			}catch(IOException e){
+				System.out.println(e);
+			}
+			
+			
+		}
 		
 	}
 }
