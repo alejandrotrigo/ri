@@ -31,6 +31,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
 public class IndexFiles {
+	
+	private static boolean optIndexes1 = false;
+	private static boolean optIndexes2= false;
+	
 
 
 
@@ -54,8 +58,7 @@ public class IndexFiles {
 		String indexes2 = null;
 		ArrayList<String> colls = new ArrayList<>();
 		ArrayList<String> indexes1 = new ArrayList<>();
-		
-		
+		Path INDEX_PATH= null;
 		
 
 
@@ -77,32 +80,41 @@ public class IndexFiles {
 		  	  }
 		    } else if ("-indexes1".equals(args[i])){
 			  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+				  optIndexes1=true;
 		  		  indexes1.add(args[i+1]);
 			    	  i++;
 		  	  }
 		    } else if ("-indexes2".equals(args[i])){
+		    	optIndexes2=true;
 		  	  indexes2 = args[i+1];
 		  	  i++;
 		    }
 		}
 
 		if (indexPath == null){
-			System.err.println("Usage: "+ usage);
-			System.exit(1);
+				if(indexes1.isEmpty()){
+					if (indexes2.isEmpty()){
+						System.err.println("Usage: "+ usage);
+						System.exit(1);
+					}
+				}else{
+					INDEX_PATH = Paths.get(indexes1.get(0));
+				}
+		}else {
+			INDEX_PATH = Paths.get(indexPath);
 		}
-
-		final Path INDEX_PATH = Paths.get(indexPath);
+		
 		if (!Files.isReadable(INDEX_PATH)){
 			System.out.println("Document directory '" +INDEX_PATH.toAbsolutePath()+ "' does not exist or is not readable, please check the path");
 		  System.exit(1);
-		}
+	 }
 
 
     Date start = new Date();
     try {
-      System.out.println("Indexing to directory '" + indexPath + "'...");
+      System.out.println("Indexing to directory '" + INDEX_PATH + "'...");
 
-      Directory dir = FSDirectory.open(Paths.get(indexPath));
+      Directory dir = FSDirectory.open(INDEX_PATH);
       Analyzer analyzer = new StandardAnalyzer();
       IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
 
@@ -116,36 +128,31 @@ public class IndexFiles {
     	  System.out.println("Error, se toma create por defecto");
     	  
       }
-      // Optional: for better indexing performance, if you
-      // are indexing many documents, increase the RAM
-      // buffer.  But if you do this, increase the max heap
-      // size to the JVM (eg add -Xmx512m or -Xmx1g):
-      //
-      // iwc.setRAMBufferSizeMB(256.0);
       
-      //TODO:separar index de indexes1 de indexes2
-      IndexWriter writer = new IndexWriter(dir, iwc);
-      List<IndexWriter> writers= createIws(indexes1,iwc);
       
-      for (String columna:colls){
-    	  if (indexPath != null){
-    		  indexDocs(writers.get(0), Paths.get(columna),1);
-    		  writers.remove(0);
-    	  }else{
-    		  Path indice=null;
-    	   	   int a= new ThreadPool(columna,indice,writer).execute();
-    	  }
+    //TODO:separar index de indexes1 de indexes2
+      if(optIndexes1==true){
+        createIws(indexes1,colls);
+
+      }else if (optIndexes2==true){
+    	  
+      }else{
+	      IndexWriter writer = new IndexWriter(dir, iwc);
+	      for (String columna:colls){
+	    	  indexDocs(writer, Paths.get(columna),1);
+	      }
       }
-      // NOTE: if you want to maximize search performance,
-      // you can optionally call forceMerge here.  This can be
-      // a terribly costly operation, so generally it's only
-      // worth it when your index is relatively static (ie
-      // you're done adding documents to it):
-      //
-      // writer.forceMerge(1);
+      
 
-      writer.close();
+	  Path indice=null;
+   	  // int a= new ThreadPool(columna,indice,writer).execute();
 
+
+  	
+      
+      
+      
+   
       Date end = new Date();
       System.out.println(end.getTime() - start.getTime() + " total milliseconds");
 
@@ -155,22 +162,34 @@ public class IndexFiles {
     }
   }
   
-  
-	static List<IndexWriter> createIws(List<String> indexes1,IndexWriterConfig iwc) throws IOException{
-		
+ 
+	static void createIws(List<String> indexes1, List<String> colls) throws IOException{
 		List<IndexWriter> iws= new ArrayList<>();
 	    Directory dir =null;
+	    Analyzer analyzer = new StandardAnalyzer();
+	    IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
+	    IndexWriter baseIndex =new IndexWriter(FSDirectory.open(Paths.get(indexes1.get(0))),iwc);
+	    indexes1.remove(0);
+	    Directory[] dirArray= new Directory[indexes1.size()];
+	    int i=0;
 
-		
 		for (String index: indexes1){
-			
+		    iwc = new IndexWriterConfig(analyzer);
 			dir=FSDirectory.open(Paths.get(index));
 			IndexWriter writer = new IndexWriter(dir, iwc);
 			iws.add(writer);
+			dirArray[i]=dir;
+			i++;
 		}
 		
-		
-		return iws;
+        for (String columna:colls){
+        	  indexDocs(iws.get(0),Paths.get(columna),1);
+              iws.get(0).close();
+              iws.remove(0);
+          }
+        //Fusionamos indices
+       baseIndex.addIndexes(dirArray);
+       baseIndex.close();
 	}
   
 
