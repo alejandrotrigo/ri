@@ -45,10 +45,6 @@ public class IndexFiles {
 
   /** Index all text files under a directory. */
   public static void main(String[] args) {
-	  
-	  //TODO:validate arguments
-	  
-	  //TODO indexes1 indexes2
 			  String usage = "-openmode openmode (append, create, create_or_append) "
 						+"-index pathname "
 						+"-coll pathname (*.sgm files) "
@@ -146,16 +142,7 @@ public class IndexFiles {
 	    	  indexDocs(writer, Paths.get(columna),1);
 	      }
       }
-      
-
-	  Path indice=null;
-   	  // int a= new ThreadPool(columna,indice,writer).execute();
-
-
-  	
-      
-      
-      
+  
    
       Date end = new Date();
       System.out.println(end.getTime() - start.getTime() + " total milliseconds");
@@ -317,8 +304,8 @@ public class IndexFiles {
 	            try{
 	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
 	            	writer.close();
-	    			System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
-	    					Thread.currentThread().getName(), col));
+	    			//System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
+	    				//	Thread.currentThread().getName(), col));
 	            }
 	            catch(Exception e){
 	            	e.printStackTrace();
