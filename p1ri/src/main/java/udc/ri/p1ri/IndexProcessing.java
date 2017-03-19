@@ -135,6 +135,75 @@ public static void printIdfTerms(List<List<String>> terms, int n){
 	}
 }
 
+public static void printTfIdfTerms(List<List<String>> terms, int n){
+	System.out.println("N \tTerm \t idf  tf" );
+	int i=0;
+	while (i<n){
+	System.out.println(terms.get(0).get(i)+"\t"+terms.get(1).get(i)+"\t "
+	+terms.get(2).get(i)+"\t"+terms.get(3).get(i));
+	i++;
+	}
+}
+
+
+public static List<List<String>> getNBestTfIdfTerms(String field, int n, DirectoryReader indexReader){
+
+    int numDocs = indexReader.maxDoc();
+    List<String> termList = new ArrayList<>();
+    List<String> idfList = new ArrayList<>();
+    List<String> order = new ArrayList<>();
+    List<List<String>> res= new ArrayList<>();
+    List<String> tfidf = new ArrayList<>();
+    int frecuencia;
+    
+    int i=1;
+
+    for (final LeafReaderContext leaf : indexReader.leaves()) {
+            // Print leaf number (starting from zero)
+            System.out.println("We are in the leaf number " + leaf.ord);
+
+            // Create an AtomicReader for each leaf
+            // (using, again, Java 7 try-with-resources syntax)
+            try (LeafReader leafReader = leaf.reader()) {
+
+
+                    final Fields fields = leafReader.fields();
+
+                            System.out.println("Field = " + field);
+                            final Terms terms = fields.terms(field);
+                            final TermsEnum termsEnum = terms.iterator();
+
+                            while ((termsEnum.next() != null) && (i<=n)) {
+                                            final String tt = termsEnum.term().utf8ToString();
+                                            System.out.println("\t" + tt + "\ttotalFreq()=" + termsEnum.totalTermFreq() + "\tdocFreq="
+                                                            + termsEnum.docFreq());
+                                            double idf = Math.log(numDocs/termsEnum.totalTermFreq());
+                                            termList.add(tt);
+                                            idfList.add(String.valueOf(idf));
+                                            order.add(String.valueOf(i));
+                                            frecuencia = termsEnum.docFreq();
+                                            if (frecuencia == 0){
+                                            	tfidf.add(String.valueOf(0));
+                                            }else{
+                                                    double tfidfV = (1 + Math.log(frecuencia)) * idf ;
+                                                    tfidf.add(String.valueOf(tfidfV));
+                                            }
+                                            i++;
+
+                            }
+
+                    } catch (IOException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                    }
+    }
+    res.add(order);
+    res.add(termList);
+    res.add(idfList);
+    res.add(tfidf);
+    return res;
+}
+
 	
 	
 
@@ -209,11 +278,12 @@ public static void printIdfTerms(List<List<String>> terms, int n){
 			List<List<String>> worstidf= getNWorstIdfTerms(fieldU, numElements, indexReader);
 			printIdfTerms(worstidf,numElements);
 		}
-		/*
-		if (optBestIdf){
-			List<List<String>> worstidf= getNWorstIdfTerms(fieldU, numElements, indexReader);
-			printIdfTerms(worstidf,numElements);
+		
+		if (optBestTfIdf){
+			List<List<String>> besttfidf= getNBestTfIdfTerms(fieldU, numElements, indexReader);
+			printTfIdfTerms(besttfidf,numElements);
 		}
+		/*
 		if (optWorstTfIdf){
 			List<List<String>> worstidf= getNWorstIdfTerms(fieldU, numElements, indexReader);
 			printIdfTerms(worstidf,numElements);

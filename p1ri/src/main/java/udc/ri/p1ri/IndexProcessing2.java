@@ -22,6 +22,11 @@ public class IndexProcessing2 {
 	
 	
 	public static void main(String[] args) {
+		String index=args[2];
+		String field=args[3];
+		String term= args[4];
+		
+		doDelDocsTerm(index,field,term);
 		
 }
 
@@ -74,7 +79,7 @@ public class IndexProcessing2 {
 
 }
 	
-	
+	/*
 	public void doDelDocsQuery (String squery, String index){
 
 		IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
@@ -124,5 +129,5 @@ public class IndexProcessing2 {
 
 	}
 	
-	
+	*/
 }

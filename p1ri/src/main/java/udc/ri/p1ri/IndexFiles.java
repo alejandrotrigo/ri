@@ -93,10 +93,11 @@ public class IndexFiles {
 
 		if (indexPath == null){
 				if(indexes1.isEmpty()){
-					if (indexes2.isEmpty()){
+					if (indexes2==null){
 						System.err.println("Usage: "+ usage);
 						System.exit(1);
-					}
+					}else
+						INDEX_PATH = Paths.get(indexes2);
 				}else{
 					INDEX_PATH = Paths.get(indexes1.get(0));
 				}
@@ -129,12 +130,11 @@ public class IndexFiles {
     	  
       }
       
-      
-    //TODO:separar index de indexes1 de indexes2
-      if(optIndexes1==true){
+            if(optIndexes1==true){
         indexes1(indexes1,colls);
 
       }else if (optIndexes2==true){
+    	  indexes2(indexes2,colls);
     	  
       }else{
 	      IndexWriter writer = new IndexWriter(dir, iwc);
@@ -183,8 +183,9 @@ public class IndexFiles {
         	  //indexDocs(iws.get(0),Paths.get(columna),1);
               iws.remove(0);
           }
-        
 	   executor.shutdown();
+
+	   
 	   /* Wait up to 1 hour to finish all the previously submitted jobs */
 	   try {
 	    executor.awaitTermination(1, TimeUnit.HOURS);
@@ -197,6 +198,34 @@ public class IndexFiles {
         //Fusionamos indices
        baseIndex.addIndexes(dirArray);
        baseIndex.close();
+	}
+	
+	
+	static void indexes2(String indexes2, List<String> colls) throws IOException{
+	    final int numCores = Runtime.getRuntime().availableProcessors();
+	    final ExecutorService executor = Executors.newFixedThreadPool(numCores);
+	    Analyzer analyzer = new StandardAnalyzer();
+	    IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
+	    IndexWriter writer =new IndexWriter(FSDirectory.open(Paths.get(indexes2)),iwc);
+
+        for (String columna:colls){
+          	 final Runnable worker = new WorkerThread2(writer,columna);
+             executor.execute(worker);
+    		 // ThreadPool pool=new ThreadPool(columna,iws.get(0));
+    		  //pool.execute();
+        	  //indexDocs(iws.get(0),Paths.get(columna),1);
+          }
+	   executor.shutdown();
+	   /* Wait up to 1 hour to finish all the previously submitted jobs */
+	   try {
+	    executor.awaitTermination(1, TimeUnit.HOURS);
+	   }
+	   catch (final InterruptedException e) {
+	    e.printStackTrace();
+	    System.exit(-2);
+	   }
+	   System.out.println("Finished all threads");
+	   writer.close();
 	}
   
 
@@ -278,18 +307,16 @@ public class IndexFiles {
 
         if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
           // New index, so we just add the document (no old document can be there):
-        //  System.out.println("adding " + file);
+        System.out.println("adding " + file);
           writer.addDocument(doc);
         } else {
           // Existing index (an old copy of this document may have been indexed) so
           // we use updateDocument instead to replace the old one matching the exact
           // path, if present:
-         // System.out.println("updating " + file);
+          System.out.println("updating " + file);
           writer.updateDocument(new Term("path", file.toString()), doc);
         }
   	}
-  
-  //TODO:Concurrencia
   
 
 	 public static class WorkerThread implements Runnable {
@@ -303,7 +330,27 @@ public class IndexFiles {
 	        public void run() {
 	            try{
 	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
+	    			//System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
+	    				//	Thread.currentThread().getName(), col));
 	            	writer.close();
+	            }
+	            catch(Exception e){
+	            	e.printStackTrace();
+	            }
+	        }
+	    }
+	 
+	 public static class WorkerThread2 implements Runnable {
+	        private final IndexWriter writer;
+	        private final String  col;
+	        public WorkerThread2(final IndexWriter writer, final String col) {
+	            this.writer = writer;
+	            this.col = col;
+	        }
+	        @Override
+	        public void run() {
+	            try{
+	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
 	    			//System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
 	    				//	Thread.currentThread().getName(), col));
 	            }
@@ -312,6 +359,7 @@ public class IndexFiles {
 	            }
 	        }
 	    }
+
 
 
 
