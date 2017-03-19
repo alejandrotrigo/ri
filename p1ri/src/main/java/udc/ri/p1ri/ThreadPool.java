@@ -15,48 +15,34 @@ import org.apache.lucene.index.IndexWriter;
 public class ThreadPool {
 	
 	private String col;
-	private Path indice;
 	private IndexWriter writer;
 	
-	public ThreadPool(String col,Path indice, IndexWriter writer){
+	public ThreadPool(String col, IndexWriter writer){
 		this.writer=writer;
 		this.col=col;
-		this.indice=indice;
 	}
-
-	/**
-	 * This Runnable takes a folder and prints its path.
-	 */
-	public static class WorkerThread implements Runnable {
-
-		private final Path folder;
-		private Path indice;
-		private String col;
-		private IndexWriter writer;
-
-		public WorkerThread(final Path folder ) {
-			this.folder = folder;
-		}
-
-		/**
-		 * This is the work that the current thread will do when processed by
-		 * the pool. In this case, it will only print some information.
-		 */
-		@Override
-		public void run() {
-			
-			try {
-				IndexFiles.indexDocs(writer,Paths.get(col),Thread.currentThread().getId());
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			
-			System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
-					Thread.currentThread().getName(), folder));
-		}
-
-	}
+	
+	
+	 public static class WorkerThread implements Runnable {
+	        private final IndexWriter writer;
+	        private final String  col;
+	        public WorkerThread(final IndexWriter writer, final String col) {
+	            this.writer = writer;
+	            this.col = col;
+	        }
+	        @Override
+	        public void run() {
+	            try{
+	            	IndexFiles.indexDocs(writer, Paths.get(col),Thread.currentThread().getId());
+	                writer.close();
+	    			System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
+	    					Thread.currentThread().getName(), col));
+	            }
+	            catch(Exception e){
+	                System.out.println("Error Workerthread");
+	            }
+	        }
+	    }
 
 	public int execute() {
 	
@@ -82,7 +68,7 @@ public class ThreadPool {
 			/* We process each subfolder in a new thread. */
 			for (final Path path : directoryStream) {
 				if (Files.isDirectory(path)) {
-					final Runnable worker = new WorkerThread(path);
+					final Runnable worker = new WorkerThread(writer,col);
 					/*
 					 * Send the thread to the ThreadPool. It will be processed
 					 * eventually.

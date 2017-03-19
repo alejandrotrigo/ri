@@ -16,6 +16,9 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -34,7 +37,7 @@ public class IndexFiles {
 	
 	private static boolean optIndexes1 = false;
 	private static boolean optIndexes2= false;
-	
+
 
 
 
@@ -59,6 +62,7 @@ public class IndexFiles {
 		ArrayList<String> colls = new ArrayList<>();
 		ArrayList<String> indexes1 = new ArrayList<>();
 		Path INDEX_PATH= null;
+
 		
 
 
@@ -132,7 +136,7 @@ public class IndexFiles {
       
     //TODO:separar index de indexes1 de indexes2
       if(optIndexes1==true){
-        createIws(indexes1,colls);
+        indexes1(indexes1,colls);
 
       }else if (optIndexes2==true){
     	  
@@ -163,8 +167,10 @@ public class IndexFiles {
   }
   
  
-	static void createIws(List<String> indexes1, List<String> colls) throws IOException{
+	static void indexes1(List<String> indexes1, List<String> colls) throws IOException{
 		List<IndexWriter> iws= new ArrayList<>();
+	    final int numCores = Runtime.getRuntime().availableProcessors();
+	    final ExecutorService executor = Executors.newFixedThreadPool(numCores);
 	    Directory dir =null;
 	    Analyzer analyzer = new StandardAnalyzer();
 	    IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -181,12 +187,26 @@ public class IndexFiles {
 			dirArray[i]=dir;
 			i++;
 		}
-		
+
         for (String columna:colls){
-        	  indexDocs(iws.get(0),Paths.get(columna),1);
-              iws.get(0).close();
+          	 final Runnable worker = new WorkerThread(iws.get(0),columna);
+             executor.execute(worker);
+    		 // ThreadPool pool=new ThreadPool(columna,iws.get(0));
+    		  //pool.execute();
+        	  //indexDocs(iws.get(0),Paths.get(columna),1);
               iws.remove(0);
           }
+        
+	   executor.shutdown();
+	   /* Wait up to 1 hour to finish all the previously submitted jobs */
+	   try {
+	    executor.awaitTermination(1, TimeUnit.HOURS);
+	   }
+	   catch (final InterruptedException e) {
+	    e.printStackTrace();
+	    System.exit(-2);
+	   }
+	   System.out.println("Finished all threads");
         //Fusionamos indices
        baseIndex.addIndexes(dirArray);
        baseIndex.close();
@@ -266,24 +286,45 @@ public class IndexFiles {
 		}
 
 
-
-  		
-  //añadir otros campos
         Field pathField = new StringField("path", file.toString(), Field.Store.YES);
         doc.add(pathField);
 
         if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
           // New index, so we just add the document (no old document can be there):
-          System.out.println("adding " + file);
+        //  System.out.println("adding " + file);
           writer.addDocument(doc);
         } else {
           // Existing index (an old copy of this document may have been indexed) so
           // we use updateDocument instead to replace the old one matching the exact
           // path, if present:
-          System.out.println("updating " + file);
+         // System.out.println("updating " + file);
           writer.updateDocument(new Term("path", file.toString()), doc);
         }
   	}
+  
+  //TODO:Concurrencia
+  
+
+	 public static class WorkerThread implements Runnable {
+	        private final IndexWriter writer;
+	        private final String  col;
+	        public WorkerThread(final IndexWriter writer, final String col) {
+	            this.writer = writer;
+	            this.col = col;
+	        }
+	        @Override
+	        public void run() {
+	            try{
+	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
+	            	writer.close();
+	    			System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
+	    					Thread.currentThread().getName(), col));
+	            }
+	            catch(Exception e){
+	            	e.printStackTrace();
+	            }
+	        }
+	    }
 
 
 
