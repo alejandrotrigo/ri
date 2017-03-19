@@ -46,6 +46,8 @@ public class IndexProcessing {
 
 	private IndexProcessing(){}
 	
+	
+	/*
 	public static List<Term> getNBestIdfTerms(String fieldU, int n, DirectoryReader indexReader){
 		
 		int numDocs = indexReader.maxDoc();
@@ -80,6 +82,58 @@ public class IndexProcessing {
 		}
 		return termList;
 	}
+	
+	*/
+public static List<List<String>> getNBestIdfTerms(String field, int n, DirectoryReader indexReader){
+		
+		int numDocs = indexReader.maxDoc();
+		List<String> termList = new ArrayList<>();
+		List<String> idfList = new ArrayList<>();
+		List<String> order = new ArrayList<>();
+		List<List<String>> res= new ArrayList<>();
+
+		int i=1;
+		
+		for (final LeafReaderContext leaf : indexReader.leaves()) {
+			// Print leaf number (starting from zero)
+			System.out.println("We are in the leaf number " + leaf.ord);
+
+			// Create an AtomicReader for each leaf
+			// (using, again, Java 7 try-with-resources syntax)
+			try (LeafReader leafReader = leaf.reader()) {
+
+				
+				final Fields fields = leafReader.fields();
+
+					System.out.println("Field = " + field);
+					final Terms terms = fields.terms(field);
+					final TermsEnum termsEnum = terms.iterator();
+
+					while ((termsEnum.next() != null) && (i<n)) {
+							final String tt = termsEnum.term().utf8ToString();
+							System.out.println("\t" + tt + "\ttotalFreq()=" + termsEnum.totalTermFreq() + "\tdocFreq="
+									+ termsEnum.docFreq());
+							double idf = Math.log(numDocs/termsEnum.totalTermFreq());
+							termList.add(tt);
+							idfList.add(String.valueOf(idf));
+							order.add(String.valueOf(i));
+							i++;
+
+					}
+
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}	
+		}
+		res.add(order);
+		res.add(termList);
+		res.add(idfList);
+		return res;
+	}
+
+	
+	
 	
 public static String getNBestTfIdfTerms(String fieldU, int n, DirectoryReader indexReader){
 		
