@@ -35,9 +35,6 @@ import org.apache.lucene.store.FSDirectory;
 
 public class IndexFiles {
 	
-	private static boolean optIndexes1 = false;
-	private static boolean optIndexes2= false;
-
 
   private IndexFiles() {}
 
@@ -46,16 +43,13 @@ public class IndexFiles {
 			  String usage = "-openmode openmode (append, create, create_or_append) "
 						+"-index pathname "
 						+"-coll pathname (*.sgm files) "
-						+"-colls pathname_1 ... pathname_n "
-						+"-indexes1 pathname_0 pathname_1 ... pathname_n "
-						+"-indexes2 pathname_0 ";
+						+"-indexingmodel (default | jm lambda | dir mu)";
 		String openMode = "create";
 		String indexPath = null;
 		String coll = null;
-		String indexes2 = null;
-		ArrayList<String> colls = new ArrayList<>();
-		ArrayList<String> indexes1 = new ArrayList<>();
+		String indexingmodel = "default";
 		Path INDEX_PATH= null;
+		StringBuilder model = new StringBuilder();
 
 		
 
@@ -69,163 +63,73 @@ public class IndexFiles {
 		      i++;
 		    } else if ("-coll".equals(args[i])) {
 		      coll = args[i+1];
-		      colls.add(coll);
 		      i++;
-		    } else if ("-colls".equals(args[i])) {
+		    } else if ("-indexingmodel".equals(args[i])) {
 		  	  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  		  colls.add(args[i+1]);
-			    	  i++;
+		  		  model.append(args[i]);
+		  		  i++;
 		  	  }
-		    } else if ("-indexes1".equals(args[i])){
-			  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-				  optIndexes1=true;
-		  		  indexes1.add(args[i+1]);
-			    	  i++;
-		  	  }
-		    } else if ("-indexes2".equals(args[i])){
-		    	optIndexes2=true;
-		  	  indexes2 = args[i+1];
-		  	  i++;
-		    }
+		    } 
 		}
+		
+		indexingmodel = model.toString();
 
 		if (indexPath == null){
-				if(indexes1.isEmpty()){
-					if (indexes2==null){
-						System.err.println("Usage: "+ usage);
-						System.exit(1);
-					}else
-						INDEX_PATH = Paths.get(indexes2);
-				}else{
-					INDEX_PATH = Paths.get(indexes1.get(0));
-				}
-		}else {
+			System.err.println("Usage: "+ usage);
+			System.exit(1);
+		}else{
 			INDEX_PATH = Paths.get(indexPath);
 		}
 		
 		if (!Files.isReadable(INDEX_PATH)){
 			System.out.println("Document directory '" +INDEX_PATH.toAbsolutePath()+ "' does not exist or is not readable, please check the path");
 		  System.exit(1);
-	 }
-
-
-    Date start = new Date();
-    try {
-      System.out.println("Indexing to directory '" + INDEX_PATH + "'...");
-
-      Directory dir = FSDirectory.open(INDEX_PATH);
-      Analyzer analyzer = new StandardAnalyzer();
-      IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
-
-      if (openMode.equals("create")) {
-        iwc.setOpenMode(OpenMode.CREATE);
-      }else if (openMode.equals("create_or_append")){
-        iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
-      }else if (openMode.equals("append")){
-		iwc.setOpenMode(OpenMode.APPEND);
-      }else { 
-    	  System.out.println("Error, se toma create por defecto");
-    	  
-      }
-      
-            if(optIndexes1==true){
-        indexes1(indexes1,colls);
-
-      }else if (optIndexes2==true){
-    	  indexes2(indexes2,colls);
-    	  
-      }else{
-	      IndexWriter writer = new IndexWriter(dir, iwc);
-	      for (String columna:colls){
-	    	  indexDocs(writer, Paths.get(columna),1);
-	      }
-    	  writer.close();
-      }
-  
-   
-      Date end = new Date();
-      System.out.println(end.getTime() - start.getTime() + " total milliseconds");
-
-    } catch (IOException e) {
-      System.out.println(" caught a " + e.getClass() +
-       "\n with message: " + e.getMessage());
-    }
-  }
-  
- 
-	static void indexes1(List<String> indexes1, List<String> colls) throws IOException{
-		List<IndexWriter> iws= new ArrayList<>();
-	    final int numCores = Runtime.getRuntime().availableProcessors();
-	    final ExecutorService executor = Executors.newFixedThreadPool(numCores);
-	    Directory dir =null;
-	    Analyzer analyzer = new StandardAnalyzer();
-	    IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
-	    IndexWriter baseIndex =new IndexWriter(FSDirectory.open(Paths.get(indexes1.get(0))),iwc);
-	    indexes1.remove(0);
-	    Directory[] dirArray= new Directory[indexes1.size()];
-	    int i=0;
-
-		for (String index: indexes1){
-		    iwc = new IndexWriterConfig(analyzer);
-			dir=FSDirectory.open(Paths.get(index));
-			IndexWriter writer = new IndexWriter(dir, iwc);
-			iws.add(writer);
-			dirArray[i]=dir;
-			i++;
 		}
 
-        for (String columna:colls){
-          	 final Runnable worker = new WorkerThread(iws.get(0),columna);
-             executor.execute(worker);
-    		 // ThreadPool pool=new ThreadPool(columna,iws.get(0));
-    		  //pool.execute();
-        	  //indexDocs(iws.get(0),Paths.get(columna),1);
-              iws.remove(0);
-          }
-	   executor.shutdown();
 
-	   
-	   /* Wait up to 1 hour to finish all the previously submitted jobs */
-	   try {
-	    executor.awaitTermination(1, TimeUnit.HOURS);
-	   }
-	   catch (final InterruptedException e) {
-	    e.printStackTrace();
-	    System.exit(-2);
-	   }
-	   System.out.println("Finished all threads");
-        //Fusionamos indices
-       baseIndex.addIndexes(dirArray);
-       baseIndex.close();
-	}
-	
-	
-	static void indexes2(String indexes2, List<String> colls) throws IOException{
-	    final int numCores = Runtime.getRuntime().availableProcessors();
-	    final ExecutorService executor = Executors.newFixedThreadPool(numCores);
-	    Analyzer analyzer = new StandardAnalyzer();
-	    IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
-	    IndexWriter writer =new IndexWriter(FSDirectory.open(Paths.get(indexes2)),iwc);
+    	try {
+    	    Date start = new Date();
+    		System.out.println("Indexing to directory '" + INDEX_PATH + "'...");
 
-        for (String columna:colls){
-          	 final Runnable worker = new WorkerThread2(writer,columna);
-             executor.execute(worker);
-    		 // ThreadPool pool=new ThreadPool(columna,iws.get(0));
-    		  //pool.execute();
-        	  //indexDocs(iws.get(0),Paths.get(columna),1);
-          }
-	   executor.shutdown();
-	   /* Wait up to 1 hour to finish all the previously submitted jobs */
-	   try {
-	    executor.awaitTermination(1, TimeUnit.HOURS);
-	   }
-	   catch (final InterruptedException e) {
-	    e.printStackTrace();
-	    System.exit(-2);
-	   }
-	   System.out.println("Finished all threads");
-	   writer.close();
-	}
+    		Directory dir = FSDirectory.open(INDEX_PATH);
+    		Analyzer analyzer = new StandardAnalyzer();
+    		IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
+
+    		if (openMode.equals("create")) {
+    			iwc.setOpenMode(OpenMode.CREATE);
+    		}else if (openMode.equals("create_or_append")){
+    			iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
+    		}else if (openMode.equals("append")){
+    			iwc.setOpenMode(OpenMode.APPEND);
+    		}else { 
+    			System.out.println("Error, se toma create por defecto");
+    	    }
+    		
+    		
+    		/*if (indexingmodel.equals("default")) {
+    			iwc.setOpenMode(OpenMode.CREATE);
+    		}else if (indexingmodel.equals("jm lambda")){
+    			iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
+    		}else if (indexingmodel.equals("dir mu")){
+    			iwc.setOpenMode(OpenMode.APPEND);
+    		}else { 
+    			System.out.println("Error, se toma create por defecto");
+    	    }*/
+    		
+           
+    		IndexWriter writer = new IndexWriter(dir, iwc);
+    		indexDocs(writer, Paths.get(coll),1);
+    		writer.close();
+  
+   
+    		Date end = new Date();
+    		System.out.println(end.getTime() - start.getTime() + " total milliseconds");
+
+    	} catch (IOException e) {
+    		System.out.println(" caught a " + e.getClass() +
+    				"\n with message: " + e.getMessage());
+    	}
+  }
   
 
 
@@ -260,7 +164,7 @@ public class IndexFiles {
               
               buff.append(contents);
 
-          		List<List<String>> articles = Reuters21578Parser.parseString(buff);
+          		List<List<String>> articles = CranParser.parse(buff);
 
           		int i=1;
           	  	for(List<String> sdoc : articles){

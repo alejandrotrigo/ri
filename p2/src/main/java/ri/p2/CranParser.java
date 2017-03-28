@@ -18,7 +18,7 @@ public class CranParser {
 	private String activeField = "";
 	private boolean newDocument = false;
 
-	public void Parse(String FileName) throws FileNotFoundException,
+	public void parse(String FileName) throws FileNotFoundException,
 			IOException, ParseException {
 		File file = new File(FileName);
 		if (file.exists() && file.isFile()) {
