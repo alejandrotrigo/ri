@@ -192,9 +192,4 @@ public class IndexFiles {
         }
   	}
   
-
-
-
-
-
-    }
+}
