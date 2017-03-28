@@ -4,6 +4,8 @@ package udc.ri.p1ri;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 
@@ -23,6 +25,8 @@ public class IndexProcessing {
 	private static boolean optWorstIdf = false;
 	private static boolean optBestTfIdf = false;
 	private static boolean optWorstTfIdf= false;
+	private static boolean optMiddleIdf= false;
+
 
 	private IndexProcessing(){}
 	
@@ -204,7 +208,69 @@ public static List<List<String>> getNBestTfIdfTerms(String field, int n, Directo
     return res;
 }
 
+/*
+
+public void middleIdf(String field,int n1,int n2, DirectoryReader indexReader){
+	List<String> termList = new ArrayList<>();
+	List<String> order = new ArrayList<>();
+	List<List<String>> res= new ArrayList<>();
+	int numDocs = indexReader.maxDoc();
+
+
+	int i=1;
 	
+	for (final LeafReaderContext leaf : indexReader.leaves()) {
+		// Print leaf number (starting from zero)
+		System.out.println("We are in the leaf number " + leaf.ord);
+
+		// Create an AtomicReader for each leaf
+		// (using, again, Java 7 try-with-resources syntax)
+		try (LeafReader leafReader = leaf.reader()) {
+
+			
+			final Fields fields = leafReader.fields();
+
+				System.out.println("Field = " + field);
+				final Terms terms = fields.terms(field);
+				final TermsEnum termsEnum = terms.iterator();
+
+				List<Double> idfs= new ArrayList<>();
+				
+				
+				while ((termsEnum.next() != null)) {
+						final String tt = termsEnum.term().utf8ToString();
+						System.out.println("\t" + tt + "\ttotalFreq()=" + termsEnum.totalTermFreq() + "\tdocFreq="
+								+ termsEnum.docFreq());
+						double idf = Math.log(numDocs/termsEnum.totalTermFreq());
+						idfs.add(idf);
+						termList.add(tt);
+						order.add(String.valueOf(i));
+						i++;
+
+				}
+				Collections.sort(idfs);
+				
+				Iterator idfsIterator = idfs.iterator();
+				while(i < n1){
+					idfsIterator.next();
+					i++;
+				}
+				while (i<n2){
+					idfsIterator.next();
+				}
+				
+				
+
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}	
+	}
+	res.add(order);
+	res.add(termList);
+	return res;
+}
+	*/
 	
 
 	
@@ -244,6 +310,13 @@ public static List<List<String>> getNBestTfIdfTerms(String field, int n, Directo
 				numElements = Integer.parseInt(args[i+2]);
 				i+=2;
 				optWorstTfIdf=true;
+			}else if("-middle_idfterms field n1 n2".equals(args[i])){
+				fieldU = args[i+1];
+				int range1= Integer.parseInt(args[i+2]);
+				int range2= Integer.parseInt(args[i+3]);
+				
+				i+=2;
+				optMiddleIdf=true;
 			}
 		}
 		
@@ -283,13 +356,11 @@ public static List<List<String>> getNBestTfIdfTerms(String field, int n, Directo
 			List<List<String>> besttfidf= getNBestTfIdfTerms(fieldU, numElements, indexReader);
 			printTfIdfTerms(besttfidf,numElements);
 		}
-		/*
-		if (optWorstTfIdf){
-			List<List<String>> worstidf= getNWorstIdfTerms(fieldU, numElements, indexReader);
-			printIdfTerms(worstidf,numElements);
-		}
-		*/
+		
+		if (optMiddleIdf){
+			
 
+		}
 
 		
 	}
