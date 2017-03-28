@@ -41,7 +41,7 @@ public class IndexFiles {
 
   /** Index all text files under a directory. */
   public static void main(String[] args) {
-			  String usage = "-openmode openmode (append, create, create_or_append) "
+		String usage = "-openmode openmode (append, create, create_or_append) "
 						+"-index pathname "
 						+"-coll pathname (*.sgm files) "
 						+"-indexingmodel (default | jm lambda | dir mu)";
