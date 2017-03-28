@@ -26,7 +26,7 @@ public class CranParser {
 			try (BufferedReader br = new BufferedReader(new FileReader(file))) {
 				documents = new ArrayList<CranDocument>();
 				for (String line; (line = br.readLine()) != null;) {
-					ProcessLine(line);
+					processLine(line);
 					if (newDocument) {
 						documents.add(activeDocument);
 						newDocument = false;
@@ -38,7 +38,7 @@ public class CranParser {
 		}
 	}
 
-	private void ProcessLine(String line) throws ParseException {
+	private void processLine(String line) throws ParseException {
 		if (line.isEmpty())
 			return;
 
@@ -71,16 +71,16 @@ public class CranParser {
 					if (!activeField.isEmpty()) {
 						switch (activeField) {
 						case ".T":
-							activeDocument.AddTitle(line);
+							activeDocument.addTitle(line);
 							break;
 						case ".A":
-							activeDocument.AddAuthors(line);
+							activeDocument.addAuthors(line);
 							break;
 						case ".B":
-							activeDocument.AddDate(line);
+							activeDocument.addDate(line);
 							break;
 						case ".W":
-							activeDocument.AddBody(line);
+							activeDocument.addBody(line);
 							break;
 						default:
 							// Unknown field. Ignore it.
@@ -92,7 +92,7 @@ public class CranParser {
 		}
 	}
 
-	public List<CranDocument> GetDocuments() {
+	public List<CranDocument> getDocuments() {
 		return this.documents;
 	}
 
@@ -125,48 +125,48 @@ class CranDocument {
 		documentID = id;
 	}
 
-	public void AddTitle(String line) {
+	public void addTitle(String line) {
 		if (title == null)
 			title = new ArrayList<String>();
 		title.add(line.trim());
 	}
 
-	public void AddBody(String line) {
+	public void addBody(String line) {
 		if (body == null)
 			body = new ArrayList<String>();
 		body.add(line.trim());
 	}
 
-	public void AddDate(String line) throws ParseException {
+	public void addDate(String line) throws ParseException {
 		if (date == null)
 			date = new ArrayList<String>();
 		date.add(line.trim());
 	}
 
-	public void AddAuthors(String line) {
+	public void addAuthors(String line) {
 		if (authors == null)
 			authors = new ArrayList<String>();
 		authors.add(line.trim());
 	}
 
-	public int GetDocumentID() {
+	public int getDocumentID() {
 		return documentID;
 	}
 
-	public String GetTitle() {
+	public String getTitle() {
 		return BuildStringFromList(title).trim();
 	}
 
-	public String GetBody() {
+	public String getBody() {
 		return BuildStringFromList(body).trim();
 	}
 
-	public String GetDate() {
+	public String getDate() {
 		return BuildStringFromList(date).trim();
 	}
 
-	public List<String> GetAuthors() {
-		return authors;
+	public String getAuthors() {
+		return BuildStringFromList(authors).trim();
 	}
 
 }

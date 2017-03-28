@@ -1,6 +1,7 @@
 package ri.p2;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -134,47 +135,28 @@ public class IndexFiles {
 
 
   static void indexDocs(final IndexWriter writer, Path path, long threadnum) throws IOException {
-    if (Files.isDirectory(path)) {
+	  if (Files.isDirectory(path)) {
     	
       Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-        	//TODO:comprobacion nombre
-      		//Comprobar si el nombre del archivo es reut2-xxx.sgm
-        	/*
-      		int nArchivo = file.toString().length();
-      		String numero= file.toString().substring((nArchivo-8), (nArchivo-5));
-      		System.out.println(numero);
-      		int archivon = Integer.parseInt(numero);
-
-      		if ((archivon > 999) || (archivon <0)){
-      			System.out.println("ERROR, archivo no pertenece");
-      		}*/
-    	    try (InputStream stream = Files.newInputStream(file)) {
-    	        // make a new, empty document
-
-              BufferedReader contents = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-
-              StringBuffer buff= new StringBuffer();
-              String line;
-              
-              while((line= contents.readLine()) != null)
-            	  buff.append(line).append("\n");
-              buff.append(System.getProperty("line.separator"));
-              
-              buff.append(contents);
-
-          		List<List<String>> articles = CranParser.parse(buff);
+        	
+        	try{
+          		CranParser parser = new CranParser();
+          		parser.parse(file.toString());
+          		List<CranDocument> documents = parser.getDocuments();
 
           		int i=1;
-          	  	for(List<String> sdoc : articles){
+          	  	for(CranDocument doc : documents){
           	  		
-          	  		indexDoc(writer, file, sdoc,i);
+          	  		indexDoc(writer, file, doc);
           	  		i++;
           	  	}
-          } catch (IOException ignore) {
-            // don't index files that can't be read.
-          }
+        	}catch(FileNotFoundException e){
+        		e.printStackTrace();
+        	}catch(ParseException e1){
+        		e1.printStackTrace();
+        	}
           return FileVisitResult.CONTINUE;
         }
       });
@@ -185,24 +167,16 @@ public class IndexFiles {
 
 
   /** Indexes a single document */
-  static void indexDoc(IndexWriter writer, Path file, List<String> sdoc,int docn) throws IOException {
+  static void indexDoc(IndexWriter writer, Path file, CranDocument cDoc) throws IOException {
 
 	  
 	  	Document doc = new Document();
     
-  		doc.add(new TextField("TITLE", sdoc.get(0),Field.Store.YES));
-  		doc.add(new TextField("BODY", sdoc.get(1),Field.Store.YES));
-  		doc.add(new TextField("TOPICS", sdoc.get(2),Field.Store.YES));
-  		doc.add(new TextField("DATELINE", sdoc.get(3),Field.Store.YES));
-  		doc.add(new TextField("DOCNUMBER", String.valueOf(docn),Field.Store.YES));
-  		SimpleDateFormat date= new SimpleDateFormat("dd-MMM-YYYY hh:mm:ss.SS");
-  		try {
-			Date now= date.parse(sdoc.get(4));
-	  		doc.add(new StringField("DATE", now.toString(),Field.Store.YES));
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+	  	doc.add(new TextField("ID", String.valueOf(cDoc.getDocumentID()),Field.Store.YES));
+  		doc.add(new TextField("TITLE", cDoc.getTitle(),Field.Store.YES));
+  		doc.add(new TextField("AUTHORS", cDoc.getAuthors(),Field.Store.YES));
+  		doc.add(new TextField("BODY", cDoc.getBody(),Field.Store.YES));
+  		doc.add(new TextField("DATE", cDoc.getDate(),Field.Store.YES));
 
 
         Field pathField = new StringField("path", file.toString(), Field.Store.YES);
