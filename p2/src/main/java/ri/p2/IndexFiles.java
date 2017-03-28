@@ -119,7 +119,7 @@ public class IndexFiles {
     		
            
     		IndexWriter writer = new IndexWriter(dir, iwc);
-    		indexDocs(writer, Paths.get(coll),1);
+    		indexDocs(writer, Paths.get(coll));
     		writer.close();
   
    
@@ -134,7 +134,7 @@ public class IndexFiles {
   
 
 
-  static void indexDocs(final IndexWriter writer, Path path, long threadnum) throws IOException {
+  static void indexDocs(final IndexWriter writer, Path path) throws IOException {
 	  if (Files.isDirectory(path)) {
     	
       Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
@@ -146,11 +146,8 @@ public class IndexFiles {
           		parser.parse(file.toString());
           		List<CranDocument> documents = parser.getDocuments();
 
-          		int i=1;
           	  	for(CranDocument doc : documents){
-          	  		
           	  		indexDoc(writer, file, doc);
-          	  		i++;
           	  	}
         	}catch(FileNotFoundException e){
         		e.printStackTrace();
@@ -195,47 +192,6 @@ public class IndexFiles {
         }
   	}
   
-
-	 public static class WorkerThread implements Runnable {
-	        private final IndexWriter writer;
-	        private final String  col;
-	        public WorkerThread(final IndexWriter writer, final String col) {
-	            this.writer = writer;
-	            this.col = col;
-	        }
-	        @Override
-	        public void run() {
-	            try{
-	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
-	    			//System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
-	    				//	Thread.currentThread().getName(), col));
-	            	writer.close();
-	            }
-	            catch(Exception e){
-	            	e.printStackTrace();
-	            }
-	        }
-	    }
-	 
-	 public static class WorkerThread2 implements Runnable {
-	        private final IndexWriter writer;
-	        private final String  col;
-	        public WorkerThread2(final IndexWriter writer, final String col) {
-	            this.writer = writer;
-	            this.col = col;
-	        }
-	        @Override
-	        public void run() {
-	            try{
-	            	IndexFiles.indexDocs(writer, Paths.get(col),1);
-	    			//System.out.println(String.format("I am the thread '%s' and I am responsible for folder '%s'",
-	    				//	Thread.currentThread().getName(), col));
-	            }
-	            catch(Exception e){
-	            	e.printStackTrace();
-	            }
-	        }
-	    }
 
 
 
