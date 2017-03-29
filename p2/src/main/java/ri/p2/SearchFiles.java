@@ -78,5 +78,8 @@ public class SearchFiles {
 			System.out.println("Graceful message: exception " + e1);
 			e1.printStackTrace();
 		}
+		
+		searcher = new IndexSearcher(reader);
+		parser = new QueryParser();
 	}
 }
