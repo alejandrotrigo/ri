@@ -25,7 +25,7 @@ public class SearchFiles {
 				+"-queries all | int1 | int1 - int2 "
 				+"-fieldsproc lista-campos"
 				+"-fieldvisual lista-campos"
-				+"-rf1 tq td ndr"
+				+"-rf1 tq td ndr ('ndr = numero de documentos relevantes')"
 				+"-rf2 ndr"
 				+"-prfjm nd nw"
 				+"-prfdir nd nw"
