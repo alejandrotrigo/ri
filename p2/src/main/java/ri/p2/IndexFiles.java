@@ -1,11 +1,8 @@
 package ri.p2;
 
-import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,13 +10,9 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -31,6 +24,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.similarities.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
@@ -50,9 +44,8 @@ public class IndexFiles {
 		String coll = null;
 		String indexingmodel = "default";
 		Path INDEX_PATH= null;
-		StringBuilder model = new StringBuilder();
+		ArrayList<String> indexingparam = new ArrayList<>();
 
-		
 
 
 		for(int i=0; i<args.length;i++){
@@ -65,15 +58,16 @@ public class IndexFiles {
 		    } else if ("-coll".equals(args[i])) {
 		      coll = args[i+1];
 		      i++;
-		    } else if ("-indexingmodel".equals(args[i])) {
-		  	  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  		  model.append(args[i]);
-		  		  i++;
-		  	  }
+		    } else if ("-indexing".equals(args[i])) {
+		    	  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+		    		  indexingparam.add(args[i+1]);
+		  	    	  i++;
+		    	  }
+		  		
 		    } 
 		}
 		
-		indexingmodel = model.toString();
+		indexingmodel = indexingparam.get(0);
 
 		if (indexPath == null){
 			System.err.println("Usage: "+ usage);
@@ -96,6 +90,7 @@ public class IndexFiles {
     		Analyzer analyzer = new StandardAnalyzer();
     		IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
 
+
     		if (openMode.equals("create")) {
     			iwc.setOpenMode(OpenMode.CREATE);
     		}else if (openMode.equals("create_or_append")){
@@ -107,15 +102,21 @@ public class IndexFiles {
     	    }
     		
     		
-    		/*if (indexingmodel.equals("default")) {
-    			iwc.setOpenMode(OpenMode.CREATE);
-    		}else if (indexingmodel.equals("jm lambda")){
-    			iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
-    		}else if (indexingmodel.equals("dir mu")){
-    			iwc.setOpenMode(OpenMode.APPEND);
+    		if (indexingmodel.equals("default")) {
+    			//no hace falta, ya esta por defecto en esta version de lucene
+    			Similarity bM25=new BM25Similarity();
+    			iwc.setSimilarity(bM25);
+    		}else if (indexingmodel.equals("jm")){
+    			float lambda= Float.valueOf(indexingparam.get(1));
+    			Similarity jmS=new LMJelinekMercerSimilarity(lambda);
+    			iwc.setSimilarity(jmS);
+    		}else if (indexingmodel.equals("dir")){
+    			float mu= Float.valueOf(indexingparam.get(1));
+    			Similarity dirS=new LMDirichletSimilarity(mu);
+    			iwc.setSimilarity(dirS);
     		}else { 
-    			System.out.println("Error, se toma create por defecto");
-    	    }*/
+    			System.out.println("Error, se toma default por defecto");
+    	    }
     		
            
     		IndexWriter writer = new IndexWriter(dir, iwc);
