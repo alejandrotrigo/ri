@@ -57,8 +57,6 @@ public class IndexFiles {
 		ArrayList<String> indexes1 = new ArrayList<>();
 		Path INDEX_PATH= null;
 
-		
-
 
 		for(int i=0; i<args.length;i++){
 			if ("-openmode".equals(args[i])) {
