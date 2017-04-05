@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.flexible.standard.parser.ParseException;
 import org.apache.lucene.search.IndexSearcher;
@@ -69,7 +70,10 @@ public class SearchFiles {
 		    } else if ("-fieldsproc".equals(args[i])) {
 		    	int j = 0;
 		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  	  		fieldsproc[j] = args[i+1];
+		  	  		if (args[i+1].equals(".W")){
+		  	  			//TODO
+			  	  		fieldsproc[j] = "BODY";
+		  	  		}
 		  	  		j++;i++;
 		  	  		
 		  	  	}	
@@ -92,7 +96,9 @@ public class SearchFiles {
 		}*/
 		
 		// Path de las queris hardcoded
-		String pathQuery = "/home/alejandro/Escritorio/ing/3º/RI/P2/cran.qry";
+		//String pathQuery = "/home/alejandro/Escritorio/ing/3º/RI/P2/cran.qry";
+
+		String pathQuery = "/home/ruben/Desktop/cranquerys/cran.qry";
 		IndexReader reader = null;
 		Directory dir = null;
 		IndexSearcher searcher = null;
@@ -117,22 +123,30 @@ public class SearchFiles {
 		
 		
 		List<CranQuery> cQueries = queryParser.getQueries();
-		StringBuilder queryArray = new StringBuilder();
-		System.out.println("ASDASDASDAS "+cQueries.get(1).getDocumentID());
-
+		String[] queryArray = new String[cQueries.size()];
+		int n=0;
+		String[] fieldsProc= new String[cQueries.size()];
 		for (CranQuery q : cQueries){
-			queryArray.append(q.getQuery());
+	
+			queryArray[n]=q.getQuery();
+			fieldsProc[n]=fieldsproc[0];
+			n++;
 		}
-		
 
+		StandardAnalyzer analyzer=new StandardAnalyzer();
+		Query multiQuery= MultiFieldQueryParser.parse(queryArray,fieldsProc,analyzer);
+		//TODO 87 y 88 wildcards leading
 		TopDocs topDocs = null;
 
-		/*try {
-			topDocs = searcher.search(query, 10);
+		try {
+			topDocs = searcher.search(multiQuery, 10);
 		} catch (IOException e1) {
 			System.out.println("Graceful message: exception " + e1);
 			e1.printStackTrace();
-		}*/
+		}
+		
+		System.out.println(topDocs.totalHits +" results for query  " + multiQuery.toString() +""
+				+ "showing 10 documents cosasss");
 	}
 	
 }
@@ -179,6 +193,8 @@ class CranQueryParser {
 	private List<CranQuery> documents = null;
 	private String activeField = "";
 	private boolean newDocument = false;
+	
+	
 
 	public void parse(String FileName) throws FileNotFoundException,
 			IOException, ParseException {
@@ -202,7 +218,6 @@ class CranQueryParser {
 private void processLine(String line) throws ParseException {
 	if (line.isEmpty())
 		return;
-
 	if (line.startsWith(".I")) {
 		int documentID = -1;
 		try {
@@ -213,18 +228,14 @@ private void processLine(String line) throws ParseException {
 		activeDocument = new CranQuery(documentID);
 		activeField = "";
 		newDocument = true;
-	} else {
-		if (activeDocument != null) {
-			if (line.startsWith(".W")) {
-					activeField = line;
-			}
-		} else {
-				if (!activeField.isEmpty()) {
-						activeDocument.addQuery(line);	
-					}
-				}
-			}
+	} else if (line.startsWith(".W")){
+			activeField=".W";
+	}else{
+		if(activeField!=null){
+			activeDocument.addQuery(line);
 		}
+	}
+}
 
 
 public List<CranQuery> getQueries() {
