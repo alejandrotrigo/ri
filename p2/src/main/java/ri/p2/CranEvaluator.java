@@ -12,6 +12,51 @@ import java.util.List;
 
 public class CranEvaluator {
 	
+	private List<List<Integer>> getRelevances(String querydoc)throws FileNotFoundException,
+	IOException, ParseException {
+		List<List<Integer>> relevances =new ArrayList<>();
+		File file = new File(querydoc);
+		if (file.exists() && file.isFile()) {
+			try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+				for (String line; (line = br.readLine()) != null;) {
+				int[] ql=processLine(line);
+				relevances.get(ql[0]).add(ql[1]);
+				}
+				
+			}
+		}
+		
+		
+		return relevances;
+	}
+	
+		
+		
+		private int[] processLine(String line) throws ParseException {
+			
+			int qnum= 0;
+			int dnum= 0;
+			int i= 1;
+			int j=0;
+			
+			if (line.isEmpty())
+			    return new int[] {-1,-1};
+
+			while(line.charAt(i) != ' '){
+				i++;
+			}
+			qnum=Integer.parseInt(line.substring(0, i));
+			j=i+1;
+			while(line.charAt(i) != ' '){
+				i++;
+			}
+			dnum=Integer.parseInt(line.substring(j,i));
+			return new int[] {qnum,dnum};
+		}
+		
+		
+
+	
 
 	
 	class CranQuery {
@@ -64,7 +109,6 @@ public class CranEvaluator {
 				try (BufferedReader br = new BufferedReader(new FileReader(file))) {
 					documents = new ArrayList<CranQuery>();
 					for (String line; (line = br.readLine()) != null;) {
-						// process the line.
 						processLine(line);
 						if (newDocument) {
 							documents.add(activeDocument);
