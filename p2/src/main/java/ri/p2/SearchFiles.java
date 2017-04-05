@@ -6,6 +6,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -14,6 +15,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+
+import ri.p2.CranEvaluator.CranQuery;
+import ri.p2.CranEvaluator.CranQueryParser;
 
 public class SearchFiles {
 	
@@ -34,7 +38,7 @@ public class SearchFiles {
 		String indexPath = null;
 		int cut = 0;
 		int top = 0;
-		String queries = "all";
+		List<String>queries = new ArrayList<>();
 		List<String>listaCampos = new ArrayList<>();
 		List<String>listaCamposVisual = new ArrayList<>();
 		Path INDEX_PATH= null;
@@ -55,16 +59,32 @@ public class SearchFiles {
 			    i++;
 			} else if ("-indexingmodel".equals(args[i])) {
 		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  	  		model.append(args[i]);
+		  	  		model.append(args[i+1]);
 		  	  		i++;
 		  	  	}	
-		    } 
+		    } else if("-queries".equals(args[i])){ //-queries int1-int2 (junto)
+		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+		  	  		queries.add(args[i+1]);
+		  	  		i++;
+		  	  	}
+		    }
 		}
 		
+		
+		if (queries.get(0).equals("all")){
+			//Todas las queries
+		}else if(queries.size() == 1){
+			//Se procesa solo la query que se indica
+		}else {
+			//Lista de queris a procesar
+		}
+		
+		// Path de las queris hardcoded
+		String pathQuery = "/home/alejandro/Escritorio/ing/3º/RI/P2/cran.qry";
 		IndexReader reader = null;
 		Directory dir = null;
 		IndexSearcher searcher = null;
-		QueryParser parser;
+		CranQueryParser queryParser = new CranQueryParser();
 		Query query = null;
 		
 		try {
@@ -80,6 +100,21 @@ public class SearchFiles {
 		}
 		
 		searcher = new IndexSearcher(reader);
-		parser = new QueryParser();
+		queryParser.parse(pathQuery);
+		List<CranQuery> cQueries = queryParser.getQueries();
+		
+		for (CranQuery q : cQueries){
+			
+		}
+		
+
+		TopDocs topDocs = null;
+
+		try {
+			topDocs = searcher.search(query, 10);
+		} catch (IOException e1) {
+			System.out.println("Graceful message: exception " + e1);
+			e1.printStackTrace();
+		}
 	}
 }

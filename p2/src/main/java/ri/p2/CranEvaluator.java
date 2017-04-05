@@ -149,7 +149,7 @@ public class CranEvaluator {
 			}
 	
 	
-	public List<CranQuery> GetQueries() {
+	public List<CranQuery> getQueries() {
 		return this.documents;
 	}
 }
