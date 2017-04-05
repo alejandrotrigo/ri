@@ -52,7 +52,7 @@ public class SearchFiles {
 			if ("-search".equals(args[i])) {
 				search = args[i+1];
 				i++;
-		    } else if ("-index".equals(args[i])) {
+		    } else if ("-indexin".equals(args[i])) {
 		    	indexPath = args[i+1];
 		    	i++;
 		    } else if ("-cut".equals(args[i])) {
@@ -61,12 +61,7 @@ public class SearchFiles {
 		    } else if ("-top".equals(args[i])) {
 		    	top = Integer.parseInt(args[i+1]);
 			    i++;
-			} else if ("-indexingmodel".equals(args[i])) {
-		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  	  		model.append(args[i+1]);
-		  	  		i++;
-		  	  	}	
-		    } else if("-queries".equals(args[i])){ //-queries int1-int2 (junto)
+			} else if("-queries".equals(args[i])){ //-queries int1-int2 (junto)
 		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
 		  	  		queries.add(args[i+1]);
 		  	  		i++;
@@ -122,19 +117,22 @@ public class SearchFiles {
 		
 		
 		List<CranQuery> cQueries = queryParser.getQueries();
-		
+		StringBuilder queryArray = new StringBuilder();
+		System.out.println("ASDASDASDAS "+cQueries.get(1).getDocumentID());
+
 		for (CranQuery q : cQueries){
+			queryArray.append(q.getQuery());
 		}
 		
 
 		TopDocs topDocs = null;
 
-		try {
+		/*try {
 			topDocs = searcher.search(query, 10);
 		} catch (IOException e1) {
 			System.out.println("Graceful message: exception " + e1);
 			e1.printStackTrace();
-		}
+		}*/
 	}
 	
 }
@@ -181,7 +179,6 @@ class CranQueryParser {
 	private List<CranQuery> documents = null;
 	private String activeField = "";
 	private boolean newDocument = false;
-	int index=0;
 
 	public void parse(String FileName) throws FileNotFoundException,
 			IOException, ParseException {
@@ -192,7 +189,7 @@ class CranQueryParser {
 				for (String line; (line = br.readLine()) != null;) {
 					processLine(line);
 					if (newDocument) {
-						documents.add(index, activeDocument);
+						documents.add(activeDocument);
 						newDocument = false;
 					}
 				}
