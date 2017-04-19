@@ -5,13 +5,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -25,6 +22,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
@@ -34,7 +35,7 @@ public class SearchFiles {
 	static int gtop= 1;
 	
 	public static void main(String[] args) throws Exception{
-		String usage = "-search default | jm | dir"
+		String usage = "-search default | jm l| dir m"
 				+"-indexin pathname "
 				+"-cut n "
 				+"-top n "
@@ -46,20 +47,20 @@ public class SearchFiles {
 				+"-prfjm nd nw"
 				+"-prfdir nd nw"
 				+"-explain";
-		String search = "default";
 		String indexPath = null;
 		int cut = 0;
 		int top = 0;
+		List<String>search= new ArrayList<>();
 		List<String>queries = new ArrayList<>();
-		List<String>listaCamposVisual = new ArrayList<>();
-		Path INDEX_PATH= null;
-		StringBuilder model = new StringBuilder();
-		String[] fieldsproc = new String[2];
+		List<String>fieldsvisual = new ArrayList<>();
+		List<String> fieldsproc = new ArrayList<>();
 		
 		for(int i=0; i<args.length;i++){
 			if ("-search".equals(args[i])) {
-				search = args[i+1];
-				i++;
+			  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+		  	  		search.add(args[i+1]);
+		  	  		i++;
+		  	  	}
 		    } else if ("-indexin".equals(args[i])) {
 		    	indexPath = args[i+1];
 		    	i++;
@@ -76,19 +77,36 @@ public class SearchFiles {
 		  	  		i++;
 		  	  	}
 		    } else if ("-fieldsproc".equals(args[i])) {
-		    	int j = 0;
 		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  	  		if (args[i+1].equals(".W")){
-		  	  			//TODO
-			  	  		fieldsproc[j] = "BODY";
+		  	  		if(args[i+1].equals("W")){
+		  	  			fieldsproc.add("BODY");
 		  	  		}
-		  	  		j++;i++;
-		  	  		
+		  	  			else{fieldsproc.add("TITLE");}
+			  	  		i++;
 		  	  	}	
-		    } else if("-fieldvisual".equals(args[i])){ //-queries int1-int2 (junto)
+		    } else if("-fieldsvisual".equals(args[i])){
 		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
-		  	  		listaCamposVisual.add(args[i+1]);
-		  	  		i++;
+			  	  	switch (args[i+1]) {
+				  	  	case "I":
+				  	  		fieldsvisual.add("ID");
+				  	  		break;
+						case "T":
+							fieldsvisual.add("TITLE");
+							break;
+						case "A":
+							fieldsvisual.add("AUTHORS");
+							break;
+						case "B":
+							fieldsvisual.add("DATE");
+							break;
+						case "W":
+							fieldsvisual.add("BODY");
+							break;
+						default:
+							// Unknown field. Ignore it.
+							break;
+			  	  	}
+		  	  	i++;
 		  	  	}
 		    }
 		} 
@@ -128,60 +146,50 @@ public class SearchFiles {
 			searcher = new IndexSearcher(reader);
 			queryParser = new CranQueryParser();
 			queryParser.parse(pathQuery);
+			
+
+    		if (search.get(0).equals("default")) {
+    			Similarity bM25=new BM25Similarity();
+    			searcher.setSimilarity(bM25);
+    		}else if (search.get(0).equals("jm")){
+    			float lambda= Float.valueOf(search.get(1));
+    			Similarity jmS=new LMJelinekMercerSimilarity(lambda);
+    			searcher.setSimilarity(jmS);
+    		}else if (search.get(0).equals("dir")){
+    			float mu= Float.valueOf(search.get(1));
+    			Similarity dirS=new LMDirichletSimilarity(mu);
+    			searcher.setSimilarity(dirS);
+    		}else { 
+    			System.out.println("Error, se toma default por defecto");
+    	    }
+		
 		
 		
 			
-		//TODO revisar que ya no hace falta, vienen numeradas bien, se ignora .I
 			List<CranQuery> cQueries = queryParser.getQueries();
-			List<CranQuery> cQueries2= new ArrayList<>();
-			cQueries2.add(cQueries.get(1));
+			List<CranQuery> queriesProc= new ArrayList<>();
+			if(queries.get(0).equals("all")){
+				queriesProc=cQueries;
+			}else if(queries.size()==1){
+				queriesProc.add(cQueries.get(Integer.parseInt(queries.get(0))));
+			}else if(queries.size()==2){
+				queriesProc=cQueries.subList(Integer.parseInt(queries.get(0)),Integer.parseInt(queries.get(1))+1);
+			}
+			
 		StandardAnalyzer analyzer=new StandardAnalyzer();
-		//TODO 87 y 88 wildcards leading
 		CranRelevances relevances = new CranRelevances();
 		relevances.parse("/home/ruben/Desktop/cranquerys/cranqrel");
 
 		List<CranDocument> docs = null;
 
-		for (CranQuery q : cQueries2) {
-			List<Integer> rels = relevances.RelevancesOf(q.getDocumentID());
-				query = doMultiQuery(q, analyzer);
-				docs = doSearch(searcher, query,reader);
+		for (CranQuery q : queriesProc) {
+				query = doMultiQuery(q,fieldsproc, analyzer);
+				docs = doSearch(searcher, query,reader,fieldsvisual,top);
 				updateRelevants(docs, q.getDocumentID(), relevances);
-				System.out.println(String.valueOf(docs.size()));
-				System.out.println(String.valueOf(q.getDocumentID()));	
-				//System.out.println(rels);	
-
 				metrics(docs, q.getDocumentID(), relevances);
-				/*if (q.GetDocumentID() == 4 || q.GetDocumentID() == 5) {
-					for (MyDocument doc:docs) {
-						System.out.println(doc.GetDocument().get("docid") + "@DocID for query " + q.GetDocumentID());
-					}
-				}*/
 			}
 
-		/*
-		try {
-			topDocs = searcher.search(multiQuery, 10);
-		} catch (IOException e1) {
-			System.out.println("Graceful message: exception " + e1);
-			e1.printStackTrace();
-		}
-		
 
-		
-		System.out.println(topDocs.totalHits +" results for query  " + multiQuery.toString() +""
-				+ "showing 10 documents");
-		
-		List<CranDocument> docs= new ArrayList<>();
-		List<Integer> relevances= new ArrayList<>();
-		
-		
-		docs = doSearch(searcher, query);
-
-		MarkRelevantDocs(docs, q.GetDocumentID(), relevances);
-		CalculateMetrics(docs, q.GetDocumentID(), relevances);
-				
-*/
 	}
 
 
@@ -202,12 +210,13 @@ public class SearchFiles {
 		System.out.println("Metrics for query:  " + queryId);
 		System.out.printf("   P@10 = %f; P@20 = %f\n", p10, p20);
 		System.out.printf("   R@10 = %f; R@20 = %f\n", r10, r20);
-		System.out.printf("   MAP  = %f\n", map);
+		//TODO AP
 		System.out.println();
-		//SHOW TOP docs TODO
 		System.out.println("\n");
 
 		// TODO all querys averages
+		System.out.printf("   MAP  = %f\n", map);
+
 	}
 
 	private static float calculatePN(List<CranDocument> docs, List<Integer> rels,
@@ -285,32 +294,30 @@ public class SearchFiles {
 		return 0.0f;
 	}
 	
-	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader) {
+	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top) {
 		List<CranDocument> docs = new ArrayList<CranDocument>();
 		
 		TopDocs topDocs=null;	
 
 		
 		try {
-			topDocs = searcher.search(query, 10);
+			topDocs = searcher.search(query, top);
 		} catch (IOException e1) {
 			System.out.println("Graceful message: exception " + e1);
 			e1.printStackTrace();
 		}
 		
 		System.out.println(
-				"\n" + topDocs.totalHits + " results for query \"" + query.toString() + "\" showing for the first " + 10
-						+ " documents the doc id, score and the content of the title field");
+				"\n" + topDocs.totalHits + " results for query \"" + query.toString() + "\" showing for the first " + top
+						+ " documents\n");
 
 		ScoreDoc[] hits = topDocs.scoreDocs;
-		for (int i = 0; i < Math.min(10, topDocs.totalHits); i++) {
+		for (int i = 0; i < Math.min(top, topDocs.totalHits); i++) {
 			try {
 				
 				Document d = searcher.doc(hits[i].doc);
-				//TODO
 				//TODO ojo al +1 en el .doc
-				System.out.println((topDocs.scoreDocs[i].doc+1) + " -- score: " + topDocs.scoreDocs[i].score + " -- "
-						+ reader.document(topDocs.scoreDocs[i].doc).get("TITLE"));
+				System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
 				docs.add(new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score));
 
 			} catch (CorruptIndexException e) {
@@ -326,17 +333,32 @@ public class SearchFiles {
 		return docs;
 	}
 	
-	public static Query doMultiQuery(CranQuery query, Analyzer analyzer) {
+	public static String getVisuals(Document d, List<String> fieldsvisual){
+		String visuals="";
+
+		for (String f:fieldsvisual){
+			visuals=visuals+(f+": "+d.get(f)+"\n");
+		}
+		return visuals;
+	}
+	
+
+
+	
+	public static Query doMultiQuery(CranQuery query,List<String> fieldsproc, Analyzer analyzer) {
 		List<String> queryW= new ArrayList<String>();
-		List<String> fields= new ArrayList<String>();
-		// TODO:MAke the query for each field
+		List<String> fields= fieldsproc;
 		Query q = null;
-		//TODO:take from arguments
-		fields.add("BODY");
 		queryW.add(query.getQuery());
 		try {
-			q= MultiFieldQueryParser.parse(queryW.toArray(new String[queryW.size()]),
-					fields.toArray((new String[fields.size()])),analyzer);
+			if (fields.size()==1){
+				q= MultiFieldQueryParser.parse(queryW.toArray(new String[queryW.size()]),
+						fields.toArray((new String[fields.size()])),analyzer);
+			}else{
+				queryW.add(queryW.get(0));
+				q= MultiFieldQueryParser.parse(queryW.toArray(new String[queryW.size()]),
+						fields.toArray((new String[fields.size()])),analyzer);
+				}
 		} catch (org.apache.lucene.queryparser.classic.ParseException e) {
 			e.printStackTrace();
 		}
@@ -367,6 +389,7 @@ public class SearchFiles {
 
 	//FIN searchFILES TODO
 }
+
 
 class CranRelevances {
 	
