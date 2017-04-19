@@ -149,7 +149,7 @@ public class SearchFiles {
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				System.out.println(String.valueOf(docs.size()));
 				System.out.println(String.valueOf(q.getDocumentID()));	
-				System.out.println(rels);	
+				//System.out.println(rels);	
 
 				metrics(docs, q.getDocumentID(), relevances);
 				/*if (q.GetDocumentID() == 4 || q.GetDocumentID() == 5) {
@@ -389,10 +389,9 @@ class CranRelevances {
 						rel.add(activeRelevance);
 					}else{
 						if (!rel.isEmpty()){
-							List<Integer> relfin= rel;
-							System.out.println(relfin);
-							relevances.put(finishedDocId, relfin);
-							rel.clear();						}
+							relevances.put(finishedDocId, rel);
+							rel= new ArrayList<>();
+							}
 						
 					}
 				}
