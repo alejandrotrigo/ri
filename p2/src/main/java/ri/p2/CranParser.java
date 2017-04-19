@@ -108,6 +108,9 @@ class CranDocument {
 	private List<String> body= null;
 	private List<String> date = null;
 	private List<String> authors = null;
+	private boolean rel= false;
+	private float score = 0.0f;
+
 
 
 	private String BuildStringFromList(List<String> list) {
@@ -120,11 +123,30 @@ class CranDocument {
 			}
 		return sb.toString();
 	}
-
 	public CranDocument(int id) {
 		documentID = id;
+
 	}
 
+	public CranDocument(int id, float docScore) {
+		documentID = id;
+		score=docScore;
+	}
+	
+	public int getDocumentID() {
+		return documentID;
+	}
+	public void setRelevance(boolean relevance) {
+		this.rel = relevance;
+	}
+
+	public float getScore() {
+		return this.score;
+	}
+
+	public boolean getRelevance() {
+		return this.rel;
+	}
 	public void addTitle(String line) {
 		if (title == null)
 			title = new ArrayList<String>();
@@ -147,10 +169,6 @@ class CranDocument {
 		if (authors == null)
 			authors = new ArrayList<String>();
 		authors.add(line.trim());
-	}
-
-	public int getDocumentID() {
-		return documentID;
 	}
 
 	public String getTitle() {
