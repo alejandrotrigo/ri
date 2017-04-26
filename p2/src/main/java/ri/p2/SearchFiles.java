@@ -187,7 +187,10 @@ public class SearchFiles {
 				docs = doSearch(searcher, query,reader,fieldsvisual,top);
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				metrics(docs, q.getDocumentID(), relevances);
-			}
+			
+		
+		
+		}
 
 
 	}
