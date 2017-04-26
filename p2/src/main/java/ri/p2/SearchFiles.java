@@ -7,7 +7,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -15,7 +18,14 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.flexible.standard.parser.ParseException;
 import org.apache.lucene.search.IndexSearcher;
@@ -50,6 +60,7 @@ public class SearchFiles {
 		String indexPath = null;
 		int cut = 0;
 		int top = 0;
+		List<String>rf1=new ArrayList<>();
 		List<String>search= new ArrayList<>();
 		List<String>queries = new ArrayList<>();
 		List<String>fieldsvisual = new ArrayList<>();
@@ -108,7 +119,12 @@ public class SearchFiles {
 			  	  	}
 		  	  	i++;
 		  	  	}
-		    }
+		    }else if("-rf1".equals(args[i])){
+		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+		  	  		rf1.add(args[i+1]);
+		  	  		i++;
+		  	  	}
+		    } 
 		} 
 		
 		
@@ -187,8 +203,43 @@ public class SearchFiles {
 				docs = doSearch(searcher, query,reader,fieldsvisual,top);
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				metrics(docs, q.getDocumentID(), relevances);
-			
 		
+		}
+		//	public TermData rf1(IndexReader indexReader, int tq){
+
+		
+		//SEgunda PArte TODO
+
+		List<TermData> totalTermData =initializeTermData(reader);
+		if(!rf1.isEmpty()){
+			for(CranQuery q: queriesProc) {
+				List<String> stringTerms=q.getQueryTerms();
+				List<TermData> tqTerms= new ArrayList<>();
+				Iterator<String> iter= stringTerms.iterator();
+				TermData a=null;
+				String b=null;
+				//TODO optimizar tq
+				while (iter.hasNext()){
+					b=iter.next();
+					System.out.println("1\n");
+					Iterator<TermData> iter2= totalTermData.iterator();	
+					while (iter2.hasNext()){
+						a=(TermData)iter2.next();
+						if(a.getTermino()==b){
+							tqTerms.add(a);
+							continue;
+						}
+					}
+					iter.next();
+				}
+				Collections.sort(tqTerms,new Comparator<TermData>(){
+					@Override
+					public int compare(TermData o1, TermData o2) {
+						return String.valueOf(o1.idf).compareTo(String.valueOf(o2.idf));
+					}
+				});
+				}
+			
 		
 		}
 
@@ -386,11 +437,100 @@ public class SearchFiles {
 			}
 		}
 	}
-	
+
+
+	public static List<TermData> initializeTermData(IndexReader indexReader){
+        List<TermData> tdList=new ArrayList<>();
+
+                
+        for (final LeafReaderContext leaf : indexReader.leaves()) {
+                try (LeafReader leafReader = leaf.reader()) {
+
+                		String field= "BODY";
+                        int numDocs = indexReader.maxDoc();
+                        final Fields fields = leafReader.fields();
+                        final Terms terms = fields.terms(field);
+                        final TermsEnum termsEnum = terms.iterator();
+                        PostingsEnum postings = null;
+                        int tf=0;
+                        int docFreq=0;
+                        String termino=null;
+
+                        while (termsEnum.next() != null) {
+
+                                                    
+                                postings = termsEnum.postings(postings, PostingsEnum.FREQS);
+                                tf = postings.freq();
+                                docFreq = termsEnum.docFreq();
+                                termino = termsEnum.term().utf8ToString();
+                                TermData td = new TermData(termino, docFreq, numDocs, tf);
+                                tdList.add(td);
+
+        
+                                
+                        }
+                        return tdList;
+
+
+                } catch (IOException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                
+                }
+                return null;
+        }
+		return null;
+                
+}
 	
 	
 
 	//FIN searchFILES TODO
+}
+
+class TermData{
+	
+	
+	String termino;
+	int df;
+	int idf;
+	double tf;
+	double tfidf;
+	
+	public TermData(String term, int docFreq,int numDocs, double termf){
+		this.termino=term;
+		if (tf ==0){
+			this.tf=0;
+		}else if(tf >=1){
+			this.tf= 1+Math.log(tf);
+		}
+		this.tf=termf;
+		this.df=docFreq;
+		this.idf= (int) Math.log(numDocs/docFreq);
+		this.tfidf= this.idf * this.tf;
+	}
+	
+	
+	public int getIdf(){
+		return this.idf;
+	}
+	
+	public String getTermino(){
+		return this.termino;
+	}
+	
+	public int getDf(){
+		return this.df;
+	}
+	
+	public double getTf(){
+		return this.tf;
+	}
+	
+	public double getTfdf(){
+		return this.tfidf;
+	}
+
 }
 
 
@@ -512,6 +652,10 @@ class CranQuery {
 
 	public String getQuery() {
 		return BuildStringFromList(query).trim();
+	}
+	
+	public List<String> getQueryTerms(){
+		return query;
 	}
 }
 
