@@ -7,6 +7,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -213,7 +214,8 @@ public class SearchFiles {
 		List<TermData> totalTermData =initializeTermData(reader);
 		if(!rf1.isEmpty()){
 			for(CranQuery q: queriesProc) {
-				List<String> stringTerms=q.getQueryTerms();
+				String sTerms=q.getQuery();
+				List<String> stringTerms=Arrays.asList(sTerms.split(" "));
 				List<TermData> tqTerms= new ArrayList<>();
 				Iterator<String> iter= stringTerms.iterator();
 				TermData a=null;
@@ -221,16 +223,15 @@ public class SearchFiles {
 				//TODO optimizar tq
 				while (iter.hasNext()){
 					b=iter.next();
-					System.out.println("1\n");
 					Iterator<TermData> iter2= totalTermData.iterator();	
 					while (iter2.hasNext()){
 						a=(TermData)iter2.next();
-						if(a.getTermino()==b){
+						if(a.termino.equals(b)){
+							System.out.println("Añado " + a.termino);
 							tqTerms.add(a);
 							continue;
 						}
 					}
-					iter.next();
 				}
 				Collections.sort(tqTerms,new Comparator<TermData>(){
 					@Override
@@ -238,7 +239,12 @@ public class SearchFiles {
 						return String.valueOf(o1.idf).compareTo(String.valueOf(o2.idf));
 					}
 				});
+				System.out.println(tqTerms.get(0).idf+ " "+tqTerms.get(1).idf+" "
+				+ tqTerms.get(2).idf+ " " + tqTerms.get(3).idf +" "+tqTerms.get(4).idf);
+					
+				
 				}
+			
 			
 		
 		}
