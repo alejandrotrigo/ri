@@ -238,6 +238,7 @@ public class SearchFiles {
 					public int compare(TermData o1, TermData o2) {
 						return String.valueOf(o1.idf).compareTo(String.valueOf(o2.idf));
 					}
+					
 				});
 				System.out.println(tqTerms.get(0).idf+ " "+tqTerms.get(1).idf+" "
 				+ tqTerms.get(2).idf+ " " + tqTerms.get(3).idf +" "+tqTerms.get(4).idf);
