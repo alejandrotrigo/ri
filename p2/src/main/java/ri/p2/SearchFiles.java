@@ -66,6 +66,9 @@ public class SearchFiles {
 		List<String>queries = new ArrayList<>();
 		List<String>fieldsvisual = new ArrayList<>();
 		List<String> fieldsproc = new ArrayList<>();
+		List<String> prfjm=new ArrayList<>();
+		List<String> prfdir=new ArrayList<>();
+
 		
 		for(int i=0; i<args.length;i++){
 			if ("-search".equals(args[i])) {
@@ -125,11 +128,20 @@ public class SearchFiles {
 		  	  		rf1.add(args[i+1]);
 		  	  		i++;
 		  	  	}
-		    }
-		  	  else if ("-rf2".equals(args[i])) {
+		    }else if ("-rf2".equals(args[i])) {
 			    	rf2 = Integer.parseInt(args[i+1]);
 				    i++;
-		  	  } 
+		  	}else if("-prfjm".equals(args[i])){
+			  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+			  	  		prfjm.add(args[i+1]);
+			  	  		i++;
+			  	  	}
+			}else if("-prfdir".equals(args[i])){
+		  	  	while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
+		  	  		prfdir.add(args[i+1]);
+		  	  		i++;
+		  	  	}
+		    } 
 			} 
 		
 		
@@ -214,8 +226,9 @@ public class SearchFiles {
 
 
 		for (CranQuery q : queriesProc) {
+				List<Integer> rels=relevances.RelevancesOf(q.getDocumentID());
 				query = doMultiQuery(q,fieldsproc, analyzer);
-				docs = doSearch(searcher, query,reader,fieldsvisual,top);
+				docs = doSearch(searcher, query,reader,fieldsvisual,top,rels);
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				metrics(docs, q.getDocumentID(), relevances);
 				if (!rf1.isEmpty()){
@@ -224,16 +237,23 @@ public class SearchFiles {
 					rf1Res=doRf1(searcher,q,relevances,totalTermData,rf1);
 					nq=executeRf1(rf1Res,q);
 					query = doMultiQuery(nq,fieldsproc, analyzer);
-					docs = doSearch(searcher, query,reader,fieldsvisual,top);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels);
 				}
 				if (rf2!=-1){
-					String rf2Res;
 					CranQuery nq=null;
 					nq=executeRf2(q,relevances,rf2,searcher);
 					query = doMultiQuery(nq,fieldsproc, analyzer);
-					docs = doSearch(searcher, query,reader,fieldsvisual,top);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels);
 					
 				}
+				if (!prfjm.isEmpty()){
+					float Pd=1/docs.size();
+					q.getQuery();
+					//doPrfjm();
+				}
+				
+				
+				
 		}
 		
 
@@ -263,6 +283,8 @@ public class SearchFiles {
 		System.out.println();
 		// TODO all querys averages
 		System.out.printf("   MAP  = %f\n", map);
+		//TODO marca de relevancia en el doc resultado
+		//TODO CUT
 
 	}
 
@@ -328,7 +350,6 @@ public class SearchFiles {
 				if (docId == r) {
 					relevantDocs++;
 					if (docs.size() > 0)
-						//precision += (float) relevantDocs / docs.size();
 						precision += (float) relevantDocs / (i + 1);
 				}
 			}
@@ -340,7 +361,7 @@ public class SearchFiles {
 		return 0.0f;
 	}
 	
-	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top) {
+	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top,List<Integer> rels) {
 		List<CranDocument> docs = new ArrayList<CranDocument>();
 		
 		TopDocs topDocs=null;	
@@ -358,11 +379,24 @@ public class SearchFiles {
 						+ " documents\n");
 
 		ScoreDoc[] hits = topDocs.scoreDocs;
+		int docId = 0;
+
 		for (int i = 0; i < Math.min(top, topDocs.totalHits); i++) {
 			try {
-				
+					try {
+						docId = docs.get(i).getDocumentID();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+
+					for (int r : rels) {
+						if (docId == r){
+							docs.get(i).setRelevance(true);
+							System.out.println("RELEVANT");
+						}
+					}
+					
 				Document d = searcher.doc(hits[i].doc);
-				//TODO ojo al +1 en el .doc
 				System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
 				docs.add(new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score));
 
@@ -465,7 +499,6 @@ public class SearchFiles {
 
 
                 } catch (IOException e) {
-                        // TODO Auto-generated catch block
                         e.printStackTrace();
                 
                 }
@@ -493,7 +526,6 @@ public class SearchFiles {
 				Iterator<String> iter= stringTerms.iterator();
 				TermData a=null;
 				String b=null;
-				//TODO optimizar tq
 				while (iter.hasNext()){
 					b=iter.next();
 					Iterator<TermData> iter2= totalTermData.iterator();	
@@ -504,7 +536,6 @@ public class SearchFiles {
 							continue;
 						}
 					}
-				//TODO: funcion a parte
 				Collections.sort(tqTerms,new Comparator<TermData>(){
 					@Override
 					public int compare(TermData o1, TermData o2) {
@@ -522,7 +553,6 @@ public class SearchFiles {
 				try {
 					docsBody.add((searcher.doc(r)).get("BODY"));
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				
@@ -563,7 +593,6 @@ public class SearchFiles {
 				}
 			}
 		
-		//s=s+" "+tqTerms;
 		for(TermData tq:tqTerms){
 			s=s+" "+tq.termino;
 		}
@@ -599,7 +628,6 @@ public class SearchFiles {
 			try {
 				titles=titles+" "+(searcher.doc(r)).get("TITLE");
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			
@@ -616,6 +644,10 @@ public class SearchFiles {
 		return finalQuery;
 		
 		
+		
+	}
+	
+	private static void doPrfjm(){
 		
 	}
 	
