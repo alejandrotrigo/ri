@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -61,6 +60,7 @@ public class SearchFiles {
 		String indexPath = null;
 		int cut = 0;
 		int top = 0;
+		int rf2=-1;
 		List<String>rf1=new ArrayList<>();
 		List<String>search= new ArrayList<>();
 		List<String>queries = new ArrayList<>();
@@ -125,8 +125,12 @@ public class SearchFiles {
 		  	  		rf1.add(args[i+1]);
 		  	  		i++;
 		  	  	}
-		    } 
-		} 
+		    }
+		  	  else if ("-rf2".equals(args[i])) {
+			    	rf2 = Integer.parseInt(args[i+1]);
+				    i++;
+		  	  } 
+			} 
 		
 		
 		
@@ -152,6 +156,7 @@ public class SearchFiles {
 			dir = FSDirectory.open(Paths.get(indexPath));
 			reader = DirectoryReader.open(dir);
 
+
 		} catch (CorruptIndexException e1) {
 			System.out.println("Graceful message: exception " + e1);
 			e1.printStackTrace();
@@ -160,6 +165,14 @@ public class SearchFiles {
 			e1.printStackTrace();
 		}
 
+			List<TermData> totalTermData =initializeTermData(reader);
+			try{
+				reader = DirectoryReader.open(dir);
+					
+			}catch (IOException e1) {
+				System.out.println("Graceful message: exception " + e1);
+				e1.printStackTrace();
+			}
 			searcher = new IndexSearcher(reader);
 			queryParser = new CranQueryParser();
 			queryParser.parse(pathQuery);
@@ -188,7 +201,7 @@ public class SearchFiles {
 			if(queries.get(0).equals("all")){
 				queriesProc=cQueries;
 			}else if(queries.size()==1){
-				queriesProc.add(cQueries.get(Integer.parseInt(queries.get(0))));
+				queriesProc.add(cQueries.get((Integer.parseInt(queries.get(0))-1)));
 			}else if(queries.size()==2){
 				queriesProc=cQueries.subList(Integer.parseInt(queries.get(0)),Integer.parseInt(queries.get(1))+1);
 			}
@@ -199,56 +212,31 @@ public class SearchFiles {
 
 		List<CranDocument> docs = null;
 
+
 		for (CranQuery q : queriesProc) {
 				query = doMultiQuery(q,fieldsproc, analyzer);
 				docs = doSearch(searcher, query,reader,fieldsvisual,top);
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				metrics(docs, q.getDocumentID(), relevances);
-		
-		}
-		//	public TermData rf1(IndexReader indexReader, int tq){
-
-		
-		//SEgunda PArte TODO
-
-		List<TermData> totalTermData =initializeTermData(reader);
-		if(!rf1.isEmpty()){
-			for(CranQuery q: queriesProc) {
-				String sTerms=q.getQuery();
-				List<String> stringTerms=Arrays.asList(sTerms.split(" "));
-				List<TermData> tqTerms= new ArrayList<>();
-				Iterator<String> iter= stringTerms.iterator();
-				TermData a=null;
-				String b=null;
-				//TODO optimizar tq
-				while (iter.hasNext()){
-					b=iter.next();
-					Iterator<TermData> iter2= totalTermData.iterator();	
-					while (iter2.hasNext()){
-						a=(TermData)iter2.next();
-						if(a.termino.equals(b)){
-							System.out.println("Añado " + a.termino);
-							tqTerms.add(a);
-							continue;
-						}
-					}
+				if (!rf1.isEmpty()){
+					String rf1Res;
+					CranQuery nq=null;
+					rf1Res=doRf1(searcher,q,relevances,totalTermData,rf1);
+					nq=executeRf1(rf1Res,q);
+					query = doMultiQuery(nq,fieldsproc, analyzer);
+					docs = doSearch(searcher, query,reader,fieldsvisual,top);
 				}
-				Collections.sort(tqTerms,new Comparator<TermData>(){
-					@Override
-					public int compare(TermData o1, TermData o2) {
-						return String.valueOf(o1.idf).compareTo(String.valueOf(o2.idf));
-					}
+				if (rf2!=-1){
+					String rf2Res;
+					CranQuery nq=null;
+					nq=executeRf2(q,relevances,rf2,searcher);
+					query = doMultiQuery(nq,fieldsproc, analyzer);
+					docs = doSearch(searcher, query,reader,fieldsvisual,top);
 					
-				});
-				System.out.println(tqTerms.get(0).idf+ " "+tqTerms.get(1).idf+" "
-				+ tqTerms.get(2).idf+ " " + tqTerms.get(3).idf +" "+tqTerms.get(4).idf);
-					
-				
 				}
-			
-			
-		
 		}
+		
+
 
 
 	}
@@ -273,8 +261,6 @@ public class SearchFiles {
 		System.out.printf("   R@10 = %f; R@20 = %f\n", r10, r20);
 		//TODO AP
 		System.out.println();
-		System.out.println("\n");
-
 		// TODO all querys averages
 		System.out.printf("   MAP  = %f\n", map);
 
@@ -343,7 +329,6 @@ public class SearchFiles {
 					relevantDocs++;
 					if (docs.size() > 0)
 						//precision += (float) relevantDocs / docs.size();
-						System.out.println(relevantDocs + "   " + (i+1) + "   " + gtop + "  " + rels.size());
 						precision += (float) relevantDocs / (i + 1);
 				}
 			}
@@ -491,6 +476,149 @@ public class SearchFiles {
 }
 	
 	
+	public static String doRf1(IndexSearcher searcher,CranQuery q,CranRelevances qRelevances,List<TermData> totalTermData ,List<String> rf1){		
+		
+		
+		List<Integer> relevants=new ArrayList<>();
+		List<List<TermData>> finalTerms=new ArrayList<>();
+		List<String> docsBody=new ArrayList<>();
+		String s="";
+		int r=0;
+		List<TermData> tqTerms= new ArrayList<>();
+
+		if(!rf1.isEmpty()){
+
+				String sTerms=q.getQuery();
+				List<String> stringTerms=Arrays.asList(sTerms.split(" "));
+				Iterator<String> iter= stringTerms.iterator();
+				TermData a=null;
+				String b=null;
+				//TODO optimizar tq
+				while (iter.hasNext()){
+					b=iter.next();
+					Iterator<TermData> iter2= totalTermData.iterator();	
+					while (iter2.hasNext()){
+						a=(TermData)iter2.next();
+						if ((a.termino.equals(b)) && (Integer.valueOf(rf1.get(0)) > tqTerms.size())){
+							tqTerms.add(a);
+							continue;
+						}
+					}
+				//TODO: funcion a parte
+				Collections.sort(tqTerms,new Comparator<TermData>(){
+					@Override
+					public int compare(TermData o1, TermData o2) {
+						return String.valueOf(o1.idf).compareTo(String.valueOf(o2.idf));
+					}
+					
+				});
+				}
+			relevants=qRelevances.RelevancesOf(q.getDocumentID());
+			relevants=relevants.subList(0, Integer.parseInt(rf1.get(2)));
+			Iterator<Integer> iterRelevants=relevants.iterator();
+
+			while(iterRelevants.hasNext()){
+				r=iterRelevants.next();
+				try {
+					docsBody.add((searcher.doc(r)).get("BODY"));
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+			}
+		}
+			List<String> l=new ArrayList<>();
+			for(String d:docsBody){
+				List<TermData> docTerms=new ArrayList<>();
+				l=Arrays.asList(d.split(" "));
+				for (String st:l){
+					Iterator<TermData> termIter=totalTermData.iterator();
+					TermData term=null;
+					while(termIter.hasNext()){
+						term=termIter.next();
+						if (st.equals(term.termino)){
+							docTerms.add(term);
+							
+						}
+						
+					}
+					Collections.sort(docTerms,new Comparator<TermData>(){
+						@Override
+						public int compare(TermData o1, TermData o2) {
+							return String.valueOf(o1.tfidf).compareTo(String.valueOf(o2.tfidf));
+						}
+						
+					});
+					
+				}
+				finalTerms.add(docTerms.subList(0, Integer.parseInt(rf1.get(1))));
+
+			}
+			for (List<TermData> dt:finalTerms){
+				Iterator<TermData> dIter=dt.iterator();
+				
+				while(dIter.hasNext()){
+					s=s+" "+dIter.next().termino;
+				}
+			}
+		
+		//s=s+" "+tqTerms;
+		for(TermData tq:tqTerms){
+			s=s+" "+tq.termino;
+		}
+		return s;
+			
+	}
+	
+	
+	private static CranQuery executeRf1(String s,CranQuery q){
+		
+		String sq=q.getQuery();
+		
+		sq=sq+s;
+		
+		CranQuery finalQuery=new CranQuery(3000);
+		finalQuery.addQuery(sq);
+		
+		return finalQuery;
+		
+	}
+	
+	private static CranQuery executeRf2(CranQuery q,CranRelevances qRelevances,int ndr,IndexSearcher searcher){
+		
+		List<Integer> relevants=new ArrayList<>();
+		
+		relevants=qRelevances.RelevancesOf(q.getDocumentID());
+		relevants=relevants.subList(0,ndr);
+		Iterator<Integer> iterRelevants=relevants.iterator();
+		int r;
+		String titles="";
+		while(iterRelevants.hasNext()){
+			r=iterRelevants.next();
+			try {
+				titles=titles+" "+(searcher.doc(r)).get("TITLE");
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		}
+		
+		
+		String sq=q.getQuery();
+		
+		sq=sq+titles;
+		
+		CranQuery finalQuery=new CranQuery(3000);
+		finalQuery.addQuery(sq);
+		
+		return finalQuery;
+		
+		
+		
+	}
+	
 
 	//FIN searchFILES TODO
 }
@@ -500,7 +628,7 @@ class TermData{
 	
 	String termino;
 	int df;
-	int idf;
+	double idf;
 	double tf;
 	double tfidf;
 	
@@ -513,12 +641,12 @@ class TermData{
 		}
 		this.tf=termf;
 		this.df=docFreq;
-		this.idf= (int) Math.log(numDocs/docFreq);
+		this.idf=Math.log(numDocs/docFreq);
 		this.tfidf= this.idf * this.tf;
 	}
 	
 	
-	public int getIdf(){
+	public double getIdf(){
 		return this.idf;
 	}
 	
@@ -668,10 +796,11 @@ class CranQuery {
 
 class CranQueryParser {
 
-	private CranQuery activeDocument = null;
-	private List<CranQuery> documents = null;
+	private CranQuery activeQuery = null;
+	private List<CranQuery> queries = null;
 	private String activeField = "";
-	private boolean newDocument = false;
+	private boolean newQuery = false;
+	private int queryId=1;
 	
 	
 
@@ -680,12 +809,13 @@ class CranQueryParser {
 		File file = new File(FileName);
 		if (file.exists() && file.isFile()) {
 			try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-				documents = new ArrayList<CranQuery>();
+				queries = new ArrayList<CranQuery>();
 				for (String line; (line = br.readLine()) != null;) {
-					processLine(line);
-					if (newDocument) {
-						documents.add(activeDocument);
-						newDocument = false;
+					processLine(line,queryId);
+					if (newQuery) {
+						queries.add(activeQuery);
+						newQuery = false;
+						queryId++;
 					}
 				}
 			}
@@ -694,31 +824,26 @@ class CranQueryParser {
 		}
 	}
 
-private void processLine(String line) throws ParseException {
+private void processLine(String line,int queryId) throws ParseException {
 	if (line.isEmpty())
 		return;
 	if (line.startsWith(".I")) {
-		int documentID = -1;
-		try {
-			documentID = Integer.parseInt(line.substring(3, line.length()));
-		} catch (Exception e) {
-			throw e;
-		}
-		activeDocument = new CranQuery(documentID);
+		int id = queryId;
+		activeQuery = new CranQuery(id);
 		activeField = "";
-		newDocument = true;
+		newQuery = true;
 	} else if (line.startsWith(".W")){
 			activeField=".W";
 	}else{
 		if(activeField!=null){
-			activeDocument.addQuery(line);
+			activeQuery.addQuery(line);
 		}
 	}
 }
 
 
 public List<CranQuery> getQueries() {
-	return this.documents;
+	return this.queries;
 }
 }
 
