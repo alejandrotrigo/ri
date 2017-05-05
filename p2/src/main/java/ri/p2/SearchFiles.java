@@ -28,6 +28,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.flexible.standard.parser.ParseException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -228,7 +229,7 @@ public class SearchFiles {
 		for (CranQuery q : queriesProc) {
 				List<Integer> rels=relevances.RelevancesOf(q.getDocumentID());
 				query = doMultiQuery(q,fieldsproc, analyzer);
-				docs = doSearch(searcher, query,reader,fieldsvisual,top,rels);
+				docs = doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
 				updateRelevants(docs, q.getDocumentID(), relevances);
 				metrics(docs, q.getDocumentID(), relevances);
 				if (!rf1.isEmpty()){
@@ -237,19 +238,19 @@ public class SearchFiles {
 					rf1Res=doRf1(searcher,q,relevances,totalTermData,rf1);
 					nq=executeRf1(rf1Res,q);
 					query = doMultiQuery(nq,fieldsproc, analyzer);
-					doSearch(searcher, query,reader,fieldsvisual,top,rels);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
 				}
 				if (rf2!=-1){
 					CranQuery nq=null;
 					nq=executeRf2(q,relevances,rf2,searcher);
 					query = doMultiQuery(nq,fieldsproc, analyzer);
-					doSearch(searcher, query,reader,fieldsvisual,top,rels);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
 					
 				}
 				if (!prfjm.isEmpty()){
 					float Pd=1/docs.size();
 					q.getQuery();
-					//doPrfjm();
+					//doPrfjm(q);
 				}
 				
 				
@@ -361,7 +362,7 @@ public class SearchFiles {
 		return 0.0f;
 	}
 	
-	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top,List<Integer> rels) {
+	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top,List<Integer> rels,CranQuery originalQuery) {
 		List<CranDocument> docs = new ArrayList<CranDocument>();
 		
 		TopDocs topDocs=null;	
@@ -383,6 +384,7 @@ public class SearchFiles {
 
 		for (int i = 0; i < Math.min(top, topDocs.totalHits); i++) {
 			try {
+				/*
 					try {
 						docId = docs.get(i).getDocumentID();
 					} catch (Exception e) {
@@ -395,7 +397,9 @@ public class SearchFiles {
 							System.out.println("RELEVANT");
 						}
 					}
+					*/
 					
+				originalQuery.addDocs(topDocs);
 				Document d = searcher.doc(hits[i].doc);
 				System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
 				docs.add(new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score));
@@ -481,19 +485,21 @@ public class SearchFiles {
                         int tf=0;
                         int docFreq=0;
                         String termino=null;
+                        
+                            
+                        
 
                         while (termsEnum.next() != null) {
-
-                                                    
-                                postings = termsEnum.postings(postings, PostingsEnum.FREQS);
+                            postings = termsEnum.postings(postings, PostingsEnum.FREQS);
+                        	
+                        	while(postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                                 tf = postings.freq();
                                 docFreq = termsEnum.docFreq();
                                 termino = termsEnum.term().utf8ToString();
-                                TermData td = new TermData(termino, docFreq, numDocs, tf);
+                                TermData td = new TermData(termino, docFreq, numDocs, tf, postings.docID());
                                 tdList.add(td);
-
-        
                                 
+                            }
                         }
                         return tdList;
 
@@ -647,7 +653,37 @@ public class SearchFiles {
 		
 	}
 	
-	private static void doPrfjm(){
+	private static void doPrfjm(CranQuery actualQ,List<Integer> prfjm,List<CranQuery> queriesProc,List<TermData> totalTermData, CranRelevances rels){
+		int nd=prfjm.get(0);
+		int nw=prfjm.get(1);
+		float pd=1 / nd;
+		float pwD=0;
+		float pwR=0;
+		float pqD=0;
+		float D= 0;
+		
+		String oldQuery;
+		
+		for (CranQuery q: queriesProc){
+			oldQuery= q.getQuery();
+			D=0;
+			pwD=0;
+			pwR=0;
+			pqD=0;
+			
+			for(ScoreDoc Sdoc: q.getTopDocs().scoreDocs){
+				pqD+=Math.log(Sdoc.score);
+				
+			}
+			
+			for (TermData td:totalTermData){
+				if(rels.RelevancesOf(q.getDocumentID()).contains(td.getDocId())){
+					D+=td.getTf();
+				}
+			}
+			
+		}
+		
 		
 	}
 	
@@ -659,18 +695,20 @@ class TermData{
 	
 	
 	String termino;
+	int docId;
 	int df;
 	double idf;
 	double tf;
 	double tfidf;
 	
-	public TermData(String term, int docFreq,int numDocs, double termf){
+	public TermData(String term, int docFreq,int numDocs, double termf,int docId){
 		this.termino=term;
 		if (tf ==0){
 			this.tf=0;
 		}else if(tf >=1){
 			this.tf= 1+Math.log(tf);
 		}
+		this.docId=docId;
 		this.tf=termf;
 		this.df=docFreq;
 		this.idf=Math.log(numDocs/docFreq);
@@ -688,6 +726,10 @@ class TermData{
 	
 	public int getDf(){
 		return this.df;
+	}
+	
+	public int getDocId(){
+		return this.docId;
 	}
 	
 	public double getTf(){
@@ -790,6 +832,7 @@ class CranQuery {
 
 	private int documentID = -1; // .I
 	private List<String> query = null; // .W
+	private TopDocs tDocs=null;
 
 
 	private String BuildStringFromList(List<String> list) {
@@ -812,6 +855,10 @@ class CranQuery {
 			query = new ArrayList<String>();
 		query.add(line.trim());
 	}
+	public void addDocs(TopDocs docs){
+		this.tDocs=docs;
+	}
+	
 
 	public int getDocumentID() {
 		return documentID;
@@ -821,8 +868,8 @@ class CranQuery {
 		return BuildStringFromList(query).trim();
 	}
 	
-	public List<String> getQueryTerms(){
-		return query;
+	public TopDocs getTopDocs(){
+		return tDocs;
 	}
 }
 

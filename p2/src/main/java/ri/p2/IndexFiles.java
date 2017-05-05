@@ -58,7 +58,7 @@ public class IndexFiles {
 		    } else if ("-coll".equals(args[i])) {
 		      coll = args[i+1];
 		      i++;
-		    } else if ("-indexing".equals(args[i])) {
+		    } else if ("-indexingmodel".equals(args[i])) {
 		    	  while (((i+1) < args.length) && (args[i+1].charAt(0) != '-')){
 		    		  indexingparam.add(args[i+1]);
 		  	    	  i++;
