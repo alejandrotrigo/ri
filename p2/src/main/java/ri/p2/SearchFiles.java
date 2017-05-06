@@ -224,14 +224,16 @@ public class SearchFiles {
 		relevances.parse("/home/ruben/Desktop/cranquerys/cranqrel");
 
 		List<CranDocument> docs = null;
-
+		List<Float> allAp = new ArrayList<>();
 
 		for (CranQuery q : queriesProc) {
 				List<Integer> rels=relevances.RelevancesOf(q.getDocumentID());
+				float ap = 0.0f;
 				query = doMultiQuery(q,fieldsproc, analyzer);
 				docs = doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
 				updateRelevants(docs, q.getDocumentID(), relevances);
-				metrics(docs, q.getDocumentID(), relevances);
+				ap = metrics(docs, q.getDocumentID(), relevances);
+				allAp.add(ap);
 				if (!rf1.isEmpty()){
 					String rf1Res;
 					CranQuery nq=null;
@@ -256,17 +258,17 @@ public class SearchFiles {
 				
 				
 		}
+		float map = calculateMAP(queriesProc.size(), allAp, cut);
+		//AQUÍ HAY QUE IMPRIMIR EL MAP, SINO LO ESTAMOS HACIENDO SOLO DE UNA QUERY!
+		System.out.printf("MAP = %f\n", map);
 		
 
 
 
-	}
-
-
+	}	
 	
 	
-	
-	private static void metrics(List<CranDocument> docs, int queryId,
+	private static float metrics(List<CranDocument> docs, int queryId,
 			CranRelevances relevances) {
 		// Calculate required metrics
 		List<Integer> relevant = relevances.RelevancesOf(queryId);
@@ -274,19 +276,24 @@ public class SearchFiles {
 		float p20 = calculatePN(docs, relevant, 20);
 		float r10 = calculateRN(docs, relevant, 10);
 		float r20 = calculateRN(docs, relevant, 20);
-		float map = calculateMAP(docs, relevant);
-
+		float ap = calculateAP(docs, relevant);
 		// Single Query res
 		System.out.println("Metrics for query:  " + queryId);
 		System.out.printf("   P@10 = %f; P@20 = %f\n", p10, p20);
 		System.out.printf("   R@10 = %f; R@20 = %f\n", r10, r20);
-		//TODO AP
+		System.out.printf("   AP for query %d = %f\n", queryId, ap);
 		System.out.println();
-		// TODO all querys averages
-		System.out.printf("   MAP  = %f\n", map);
 		//TODO marca de relevancia en el doc resultado
-		//TODO CUT
+		return ap;
 
+	}
+	
+	private static boolean isRelevant(CranDocument doc, List<Integer> rels){
+		if (rels.contains(doc.getDocumentID())){
+			return true;
+		}else{
+			return false;
+		}
 	}
 
 	private static float calculatePN(List<CranDocument> docs, List<Integer> rels,
@@ -334,32 +341,46 @@ public class SearchFiles {
 			return (float) relevantDocs / rels.size();
 		return 0.0f;
 	}
-
-	private static float calculateMAP(List<CranDocument> docs, List<Integer> rels) {
-		int max = Math.min(gtop, docs.size());
-		int docId = -1;
-		int relevantDocs = 0;
-		float precision = 0.0f;
-		for (int i = 0; i < max; i++) {
-			try {
-				docId = docs.get(i).getDocumentID();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-
-			for (Integer r : rels) {
-				if (docId == r) {
-					relevantDocs++;
-					if (docs.size() > 0)
-						precision += (float) relevantDocs / (i + 1);
+	
+	private static float calculateAP(List<CranDocument> docs, List<Integer> rels) {
+		int countDocs=0;
+		int countRels=0; 
+		float ap = 0.0f;
+		
+		for(CranDocument doc : docs){
+			int docId = doc.getDocumentID();
+			for(Integer id : rels){
+				if (id==docId){
+					countDocs++;
+					countRels++;
+					ap = countRels/countDocs;
+				}else{
+					countDocs++;
+					ap = countRels/countDocs;
 				}
 			}
 		}
+		
+		return ap;
+	}
 
-		if (rels.size() > 0)
-			return precision / rels.size();
-			//return precision / optTopN;
-		return 0.0f;
+	private static float calculateMAP(int size, List<Float> allAp, int cut) {
+		float sumAp = 0.0f;
+		int i=0;
+		
+		if ((size>0) && (allAp.size()>0)){
+			if (cut < size){
+				for (i=0; i<cut; i++){
+					sumAp+=allAp.get(i);
+				}
+			}else{
+				for(Float ap : allAp){
+					sumAp+=ap;
+				}
+			}
+		}
+		
+		return sumAp/size;
 	}
 	
 	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top,List<Integer> rels,CranQuery originalQuery) {
@@ -402,7 +423,11 @@ public class SearchFiles {
 				originalQuery.addDocs(topDocs);
 				Document d = searcher.doc(hits[i].doc);
 				System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
-				docs.add(new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score));
+				CranDocument cDoc = new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score);
+				docs.add(cDoc);
+				if (isRelevant(cDoc, rels)){
+					System.out.println("RELEVANT");
+				}
 
 			} catch (CorruptIndexException e) {
 				System.out.println("Graceful message: exception " + e);
