@@ -561,7 +561,7 @@ public class SearchFiles {
 				List<String> stringTerms=Arrays.asList(sTerms.split(" "));
 				Iterator<String> iter= stringTerms.iterator();
 				TermData a=null;
-				String b=null;
+				String b=null; 
 				while (iter.hasNext()){
 					b=iter.next();
 					Iterator<TermData> iter2= totalTermData.iterator();	
