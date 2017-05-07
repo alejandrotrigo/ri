@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -62,6 +63,7 @@ public class SearchFiles {
 		int cut = 0;
 		int top = 0;
 		int rf2=-1;
+		boolean explain=false;
 		List<String>rf1=new ArrayList<>();
 		List<String>search= new ArrayList<>();
 		List<String>queries = new ArrayList<>();
@@ -142,7 +144,10 @@ public class SearchFiles {
 		  	  		prfdir.add(args[i+1]);
 		  	  		i++;
 		  	  	}
-		    } 
+		    }else if ("-explain".equals(args[i])) {
+		    	explain = true;
+			    i++;
+		    }	 
 			} 
 		
 		
@@ -164,6 +169,10 @@ public class SearchFiles {
 		IndexSearcher searcher = null;
 		CranQueryParser queryParser = new CranQueryParser();
 		Query query = null;
+
+		
+		
+		
 		
 		try {
 			dir = FSDirectory.open(Paths.get(indexPath));
@@ -190,21 +199,20 @@ public class SearchFiles {
 			queryParser = new CranQueryParser();
 			queryParser.parse(pathQuery);
 			
-
-    		if (search.get(0).equals("default")) {
-    			Similarity bM25=new BM25Similarity();
-    			searcher.setSimilarity(bM25);
-    		}else if (search.get(0).equals("jm")){
-    			float lambda= Float.valueOf(search.get(1));
-    			Similarity jmS=new LMJelinekMercerSimilarity(lambda);
-    			searcher.setSimilarity(jmS);
-    		}else if (search.get(0).equals("dir")){
-    			float mu= Float.valueOf(search.get(1));
-    			Similarity dirS=new LMDirichletSimilarity(mu);
-    			searcher.setSimilarity(dirS);
-    		}else { 
-    			System.out.println("Error, se toma default por defecto");
-    	    }
+			if (search.get(0).equals("default")) {
+				Similarity bM25=new BM25Similarity();
+				searcher.setSimilarity(bM25);
+			}else if (search.get(0).equals("jm")){
+				float lambda= Float.valueOf(search.get(1));
+				Similarity jmS=new LMJelinekMercerSimilarity(lambda);
+				searcher.setSimilarity(jmS);
+			}else if (search.get(0).equals("dir")){
+				float mu= Float.valueOf(search.get(1));
+				Similarity dirS=new LMDirichletSimilarity(mu);
+				searcher.setSimilarity(dirS);
+			}else { 
+				System.out.println("Error, se toma default por defecto");
+		    }
 		
 		
 		
@@ -216,7 +224,7 @@ public class SearchFiles {
 			}else if(queries.size()==1){
 				queriesProc.add(cQueries.get((Integer.parseInt(queries.get(0))-1)));
 			}else if(queries.size()==2){
-				queriesProc=cQueries.subList(Integer.parseInt(queries.get(0)),Integer.parseInt(queries.get(1))+1);
+				queriesProc=cQueries.subList(Integer.parseInt(queries.get(0))-1,Integer.parseInt(queries.get(1)));
 			}
 			
 		StandardAnalyzer analyzer=new StandardAnalyzer();
@@ -237,7 +245,7 @@ public class SearchFiles {
 				if (!rf1.isEmpty()){
 					String rf1Res;
 					CranQuery nq=null;
-					rf1Res=doRf1(searcher,q,relevances,totalTermData,rf1);
+					rf1Res=doRf1(searcher,q,relevances,totalTermData,rf1,explain);
 					nq=executeRf1(rf1Res,q);
 					query = doMultiQuery(nq,fieldsproc, analyzer);
 					doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
@@ -250,16 +258,28 @@ public class SearchFiles {
 					
 				}
 				if (!prfjm.isEmpty()){
-					float Pd=1/docs.size();
+					CranQuery dirjm=null;
 					q.getQuery();
-					//doPrfjm(q);
+					dirjm=doPrf(q,prfjm,queriesProc,totalTermData,relevances,
+							docs,"jm",reader,Float.valueOf(search.get(1)),explain);
+					query = doMultiQuery(dirjm,fieldsproc, analyzer);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
+
+				}
+				if (!prfdir.isEmpty()){
+					CranQuery dirq=null;
+					q.getQuery();
+					dirq=doPrf(q,prfdir,queriesProc,totalTermData,relevances,
+							docs,"dir",reader,Float.valueOf(search.get(1)),explain);
+					query = doMultiQuery(dirq,fieldsproc, analyzer);
+					doSearch(searcher, query,reader,fieldsvisual,top,rels,q);
+
 				}
 				
 				
 				
 		}
-		float map = calculateMAP(queriesProc.size(), allAp, cut);
-		//AQUÍ HAY QUE IMPRIMIR EL MAP, SINO LO ESTAMOS HACIENDO SOLO DE UNA QUERY!
+		float map = calculateMAP(allAp, cut);
 		System.out.printf("MAP = %f\n", map);
 		
 
@@ -283,7 +303,6 @@ public class SearchFiles {
 		System.out.printf("   R@10 = %f; R@20 = %f\n", r10, r20);
 		System.out.printf("   AP for query %d = %f\n", queryId, ap);
 		System.out.println();
-		//TODO marca de relevancia en el doc resultado
 		return ap;
 
 	}
@@ -343,33 +362,31 @@ public class SearchFiles {
 	}
 	
 	private static float calculateAP(List<CranDocument> docs, List<Integer> rels) {
-		int countDocs=0;
-		int countRels=0; 
+		float countDocs=0;
+		float countRels=0; 
 		float ap = 0.0f;
 		
 		for(CranDocument doc : docs){
 			int docId = doc.getDocumentID();
-			for(Integer id : rels){
-				if (id==docId){
+				if (rels.contains(docId)){
 					countDocs++;
 					countRels++;
-					ap = countRels/countDocs;
+					ap =ap+ countRels/countDocs;
 				}else{
 					countDocs++;
-					ap = countRels/countDocs;
+					//ap = countRels/countDocs;
 				}
-			}
 		}
 		
-		return ap;
+		return (ap/countRels);
 	}
 
-	private static float calculateMAP(int size, List<Float> allAp, int cut) {
+	private static float calculateMAP(List<Float> allAp, int cut) {
 		float sumAp = 0.0f;
 		int i=0;
 		
-		if ((size>0) && (allAp.size()>0)){
-			if (cut < size){
+		if (allAp.size()>0){
+			if (cut < allAp.size()){
 				for (i=0; i<cut; i++){
 					sumAp+=allAp.get(i);
 				}
@@ -380,7 +397,7 @@ public class SearchFiles {
 			}
 		}
 		
-		return sumAp/size;
+		return sumAp/cut;
 	}
 	
 	public static List<CranDocument> doSearch(IndexSearcher searcher, Query query, IndexReader reader,List<String> fieldsvisual,Integer top,List<Integer> rels,CranQuery originalQuery) {
@@ -401,32 +418,19 @@ public class SearchFiles {
 						+ " documents\n");
 
 		ScoreDoc[] hits = topDocs.scoreDocs;
-		int docId = 0;
-
-		for (int i = 0; i < Math.min(top, topDocs.totalHits); i++) {
-			try {
-				/*
-					try {
-						docId = docs.get(i).getDocumentID();
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-
-					for (int r : rels) {
-						if (docId == r){
-							docs.get(i).setRelevance(true);
-							System.out.println("RELEVANT");
-						}
-					}
-					*/
-					
+		Document d=null;
+			for (int i = 0; i < Math.min(top, topDocs.totalHits); i++) {		
+			try {	
 				originalQuery.addDocs(topDocs);
-				Document d = searcher.doc(hits[i].doc);
-				System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
+				 d = searcher.doc(hits[i].doc);
 				CranDocument cDoc = new CranDocument(Integer.parseInt(d.get("ID")), hits[i].score);
+				cDoc.addBody(d.get("BODY"));
 				docs.add(cDoc);
 				if (isRelevant(cDoc, rels)){
-					System.out.println("RELEVANT");
+					System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score);
+					System.out.println("RELEVANT\n");
+				}else{
+					System.out.println(getVisuals(reader.document(topDocs.scoreDocs[i].doc),fieldsvisual)+"SCORE: " + topDocs.scoreDocs[i].score+"\n");
 				}
 
 			} catch (CorruptIndexException e) {
@@ -540,7 +544,8 @@ public class SearchFiles {
 }
 	
 	
-	public static String doRf1(IndexSearcher searcher,CranQuery q,CranRelevances qRelevances,List<TermData> totalTermData ,List<String> rf1){		
+	public static String doRf1(IndexSearcher searcher,CranQuery q,CranRelevances qRelevances,
+			List<TermData> totalTermData ,List<String> rf1,boolean explain){		
 		
 		
 		List<Integer> relevants=new ArrayList<>();
@@ -562,9 +567,9 @@ public class SearchFiles {
 					Iterator<TermData> iter2= totalTermData.iterator();	
 					while (iter2.hasNext()){
 						a=(TermData)iter2.next();
-						if ((a.termino.equals(b)) && (Integer.valueOf(rf1.get(0)) > tqTerms.size())){
+						if ((a.termino.equals(b)) && (!tqTerms.contains(a.getTermino()))){
 							tqTerms.add(a);
-							continue;
+							break;
 						}
 					}
 				Collections.sort(tqTerms,new Comparator<TermData>(){
@@ -598,9 +603,9 @@ public class SearchFiles {
 					TermData term=null;
 					while(termIter.hasNext()){
 						term=termIter.next();
-						if (st.equals(term.termino)){
+						if ((st.equals(term.termino))&& (!docTerms.contains(term))){
 							docTerms.add(term);
-							
+							break;
 						}
 						
 					}
@@ -616,16 +621,26 @@ public class SearchFiles {
 				finalTerms.add(docTerms.subList(0, Integer.parseInt(rf1.get(1))));
 
 			}
+			TermData td=null;
 			for (List<TermData> dt:finalTerms){
 				Iterator<TermData> dIter=dt.iterator();
-				
 				while(dIter.hasNext()){
-					s=s+" "+dIter.next().termino;
+					td=dIter.next();
+					s=s+" "+td.termino;
+					if(explain){
+						System.out.println("Término de doc:" + td.getTermino()+" idf: " +
+					td.getIdf()+" tf: "+td.getTf());
+						
+					}
 				}
 			}
-		
+			
+		tqTerms=tqTerms.subList(0, Integer.valueOf(rf1.get(0)));
 		for(TermData tq:tqTerms){
 			s=s+" "+tq.termino;
+			if(explain){
+				System.out.println("Término de la query: " +tq.getTermino()+ " idf: " + tq.idf);
+			}
 		}
 		return s;
 			
@@ -669,7 +684,7 @@ public class SearchFiles {
 		
 		sq=sq+titles;
 		
-		CranQuery finalQuery=new CranQuery(3000);
+		CranQuery finalQuery=new CranQuery(3001);
 		finalQuery.addQuery(sq);
 		
 		return finalQuery;
@@ -678,42 +693,100 @@ public class SearchFiles {
 		
 	}
 	
-	private static void doPrfjm(CranQuery actualQ,List<Integer> prfjm,List<CranQuery> queriesProc,List<TermData> totalTermData, CranRelevances rels){
-		int nd=prfjm.get(0);
-		int nw=prfjm.get(1);
-		float pd=1 / nd;
+	private static CranQuery doPrf(CranQuery actualQ,List<String> prf,List<CranQuery> queriesProc,
+			List<TermData> totalTermData, CranRelevances rels,List<CranDocument> docs,String mode,
+			IndexReader reader,float param,boolean explain) throws IOException{
+		int nd=Integer.valueOf(prf.get(0));
+		int nw=Integer.valueOf(prf.get(1));
+		float pD=1 / (float)nd;
 		float pwD=0;
 		float pwR=0;
 		float pqD=0;
 		float D= 0;
+		List<TermData> pwrList=new ArrayList<>();
+		CranQuery finalQuery=null;
+		List<CranDocument> pwrSet=docs.subList(0,nd);
+		List<Integer> pwrSetId=new ArrayList<>();
+		String aq=actualQ.getQuery();
+		String[] aqArray=aq.split(" ");
+		List<String>aqList=Arrays.asList(aqArray);
+		String s="";
+		for (CranDocument d:pwrSet){
+			pwrSetId.add(d.getDocumentID());
+		}
 		
-		String oldQuery;
-		
-		for (CranQuery q: queriesProc){
-			oldQuery= q.getQuery();
 			D=0;
 			pwD=0;
 			pwR=0;
 			pqD=0;
 			
-			for(ScoreDoc Sdoc: q.getTopDocs().scoreDocs){
+			for(ScoreDoc Sdoc: actualQ.getTopDocs().scoreDocs){
 				pqD+=Math.log(Sdoc.score);
 				
 			}
 			
 			for (TermData td:totalTermData){
-				if(rels.RelevancesOf(q.getDocumentID()).contains(td.getDocId())){
-					D+=td.getTf();
+				if(pwrSetId.contains(td.getDocId())){
+					D+=td.getTf();					
+					Term term=new Term("BODY",td.getTermino());
+					if(mode.equals("dir")){
+							pwD=(float) (td.getTf() + param * (reader.totalTermFreq(term)/reader.getSumTotalTermFreq("BODY")) / D + param);
+					}else{
+						pwD=(float) ((1-param)*(td.getTf()/D) + param*reader.totalTermFreq(term)/reader.getSumTotalTermFreq("BODY")
+								/ D + param);
+
+					}
+					pwR=pD*pwD*pqD;
+					td.setpwR(pwR);
+					if(explain){
+						td.setpD(pD);
+						td.setpwD(pwD);
+						td.setpqD(pqD);
+					}
+					pwrList.add(td);
+
+
+				}
+				
+				Collections.sort(pwrList,new Comparator<TermData>(){
+					@Override
+					public int compare(TermData o1, TermData o2) {
+						return String.valueOf(o1.pwR).compareTo(String.valueOf(o2.pwR));
+					}
+					
+				});
+				
+				
+				
+				
+				
+			}
+
+			for (int i=0;i<pwrList.size();i++){
+				s=pwrList.get(i).getTermino();
+				if(!aqList.contains(s)){
+					aq=aq+" " + s;
+					if(explain){
+						System.out.println("Término:"+s+ " P(D): "+pwrList.get(i).getpD()+"P(w|D): "+ 
+					pwrList.get(i).getpwD()+ " P(qi|D): "+pwrList.get(i).getpqD());
+					}
+				}
+				if (i>=(nw-1)){
+					break;
 				}
 			}
+							
 			
-		}
-		
+			finalQuery=new CranQuery(3001);
+			finalQuery.addQuery(aq);
+
+			
+		return finalQuery;
+
 		
 	}
 	
 
-	//FIN searchFILES TODO
 }
 
 class TermData{
@@ -725,6 +798,10 @@ class TermData{
 	double idf;
 	double tf;
 	double tfidf;
+	float pwR;
+	float pD;
+	float pwD;
+	float pqD;
 	
 	public TermData(String term, int docFreq,int numDocs, double termf,int docId){
 		this.termino=term;
@@ -763,6 +840,30 @@ class TermData{
 	
 	public double getTfdf(){
 		return this.tfidf;
+	}
+	public float getpwR(){
+		return this.pwR;
+	}
+	public float getpD(){
+		return this.pD;
+	}
+	public float getpwD(){
+		return this.pwD;
+	}
+	public float getpqD(){
+		return this.pqD;
+	}
+	public void setpwR(float pwR){
+		this.pwR=pwR;
+	}
+	public void setpD(float pD){
+		this.pD=pD;
+	}
+	public void setpwD(float pwD){
+		this.pwD=pwD;
+	}
+	public void setpqD(float pqD){
+		this.pqD=pqD;
 	}
 
 }
