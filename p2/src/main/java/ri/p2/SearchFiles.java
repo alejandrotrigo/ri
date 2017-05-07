@@ -163,7 +163,7 @@ public class SearchFiles {
 		// Path de las queris hardcoded
 		//String pathQuery = "/home/alejandro/Escritorio/ing/3º/RI/P2/cran.qry";
 
-		String pathQuery = "/home/ruben/Desktop/cranquerys/cran.qry";
+		String pathQuery = "/home/alejandro/Escritorio/ing/3º/RI/P2/cran.qry";
 		IndexReader reader = null;
 		Directory dir = null;
 		IndexSearcher searcher = null;
@@ -229,7 +229,7 @@ public class SearchFiles {
 			
 		StandardAnalyzer analyzer=new StandardAnalyzer();
 		CranRelevances relevances = new CranRelevances();
-		relevances.parse("/home/ruben/Desktop/cranquerys/cranqrel");
+		relevances.parse("/home/alejandro/Escritorio/ing/3º/RI/P2/cranqrel");
 
 		List<CranDocument> docs = null;
 		List<Float> allAp = new ArrayList<>();
@@ -384,7 +384,7 @@ public class SearchFiles {
 	private static float calculateMAP(List<Float> allAp, int cut) {
 		float sumAp = 0.0f;
 		int i=0;
-		
+		if (cut == 0) cut = allAp.size();
 		if (allAp.size()>0){
 			if (cut < allAp.size()){
 				for (i=0; i<cut; i++){
@@ -588,6 +588,7 @@ public class SearchFiles {
 				r=iterRelevants.next();
 				try {
 					docsBody.add((searcher.doc(r)).get("BODY"));
+					System.out.println((searcher.doc(r)).get("BODY"));
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
